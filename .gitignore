@@ -15,8 +15,10 @@ generate.py
 verifier.py
 profil.py
 executer_notebook.py
-corrige_et_execute_J0.py
+corrige_et_execute_J0_5.py
 simule_correctif_J0.py
+construire_notebook_J0.py
+construire_notebook_J0_5.py
 construire_notebook_J1.py
 run_notebook_J0.py
 
