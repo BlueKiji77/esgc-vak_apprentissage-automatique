@@ -1,0 +1,48 @@
+# Dépôt ÉTUDIANT — filet de sécurité.
+#
+# Le dépôt ne doit contenir QUE les notebooks du cours et son README. Tout le reste est bloqué
+# par motif : même si un fichier est copié ici par erreur, git ne le suivra jamais.
+# Un `git add -A` ne peut donc pas publier les données, les corrigés ni le générateur.
+
+# ── données ─────────────────────────────────────────────────────────────────────
+*.csv
+sortie/
+enseignant/
+table_activite*
+
+# ── générateur, vérificateur : ils décrivent TOUS les pièges du jeu de données ──
+generate.py
+verifier.py
+profil.py
+executer_notebook.py
+corrige_et_execute_J0.py
+simule_correctif_J0.py
+construire_notebook_J1.py
+run_notebook_J0.py
+
+# ── corrigés et vérité terrain ──────────────────────────────────────────────────
+solution*
+soumission*
+truth.json
+
+# ── documents de conception : ils révèlent la métrique et les pièges ────────────
+Cahier*
+Syllabus*
+Guide_*
+Guide*
+Reglement*
+Overview_*
+Dataset_Description*
+Seance_*
+Simulation_*
+Integrite_*
+Infrastructure_*
+Revision_*
+Charte_*
+
+# ── divers ─────────────────────────────────────────────────────────────────────
+__pycache__/
+.ipynb_checkpoints/
+rapports/
+*.log
+*.py
