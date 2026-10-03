@@ -12,6 +12,7 @@
 | `notebook_J0.5.ipynb` | **Le test de plomberie.** À exécuter avant la première séance : s'il tourne de bout en bout, tout le reste du cours tournera |
 | `notebook_J1.ipynb` | **Le notebook de la séance 1** : la démonstration « bout en bout », l'exercice, et l'interface `predict(df)` |
 | `notebook_J2.ipynb` | **Le notebook de la séance 2 — les données avant les modèles** : l'inventaire des colonnes, l'interrogation de la cible, et le gabarit des 5 constats + 3 hypothèses. **Il ne produit pas de soumission** : ce qu'on rend, c'est le rapport qu'il imprime |
+| `DECLARATION_modele.md` | **Le modèle de déclaration d'usage de l'IA.** À recopier dans votre dépôt à chaque rendu noté : `declaration_E1.md`, `declaration_E2.md`, `declaration_E3.md` — et `declaration_B3.md` sur le dépôt d'équipe. Elle se dépose **avec** le notebook, dans le même commit |
 
 ## Comment s'en servir
 
