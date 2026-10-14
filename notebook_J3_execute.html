@@ -1,0 +1,985 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8">
+<title>notebook_J3 — exécuté</title>
+<style>
+ body{max-width:52rem;margin:2rem auto;padding:0 1rem;line-height:1.55;
+       font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#1b1b1b}
+ h1,h2,h3,h4{line-height:1.25}
+ table{border-collapse:collapse;margin:1rem 0;font-size:.92em}
+ td,th{border:1px solid #ccc;padding:.25rem .5rem;text-align:left}
+ th{background:#f2f2f2}
+ pre{background:#f6f8fa;padding:.7rem .9rem;overflow-x:auto;border-radius:4px;font-size:.88em}
+ pre.out{background:#fff;border-left:3px solid #4a7c9b}
+ code{font-family:ui-monospace,Consolas,monospace}
+ blockquote{margin:1rem 0;padding:.4rem 1rem;border-left:3px solid #b5651d;background:#fdf7f2}
+ .note{background:#eef4f9;border:1px solid #c8d8e4;padding:.7rem 1rem;border-radius:4px}
+</style></head><body>
+<h1>notebook_J3</h1>
+<p class="note">Copie <strong>exécutée</strong> du carnet, pour la relecture : les sorties sont celles
+d'une exécution complète sur les données du cours. Le carnet à importer dans Kaggle reste
+<code>notebook_J3.ipynb</code>, qui part sans sorties. Si un chiffre diffère, c'est cette copie qui a raison :
+elle a tourné.</p>
+<p>J3 — Comparer sans se mentir, puis ce qu’on fait des défauts trouvés</p>
+<p><strong>Séance 3.</strong> La chaîne, vous la connaissez : lire, explorer, entraîner, soumettre. Aujourd’hui,
+elle sert deux fois. D’abord à <strong>comparer</strong> : un score, contre quoi ? Puis à <strong>décider</strong> de ce que
+l’exploration a trouvé — les trous, les colonnes inutiles, les valeurs impossibles.</p>
+<blockquote>
+<p><strong>La règle :</strong> une décision — de modèle ou de nettoyage — se <strong>mesure</strong>. Un effet nul est un
+résultat : il dit que cette décision-là ne se joue pas là.</p>
+</blockquote>
+<p><strong>Le fil :</strong> on ne nettoie pas ce qu’on ne sait pas mesurer. La barre de bruit est posée dans la
+première moitié. C’est elle qui rend lisible le « le score ne bouge pas » de la seconde.</p>
+<p><strong>Ce que le devoir 2 vous demandera :</strong> les baselines et le tableau à quatre colonnes. Le journal
+de nettoyage (décision · choix · effet mesuré). Et le <strong>pipeline</strong>, qui va de la table brute à la
+prédiction.</p>
+<p><strong>La table de travail n’est pas reconstruite ici</strong> : la mise en place ci-dessous est <strong>extraite de
+<code>notebook_J1.ipynb</code></strong>, qui reste la source unique. Il n’existe qu’une seule définition de
+<code>matrice()</code> dans tout le cours.</p>
+<h2>Mise en place (fournie)</h2>
+<p>Ces cellules sont <strong>extraites de <code>notebook_J1.ipynb</code></strong>, qui reste la source unique de la table
+de travail, de la référence et du modèle. Exécutez-les de haut en bas.</p>
+<p>Les <code>random_state=0</code> que vous verrez sont la <strong>graine du tirage au sort</strong> (expliquée en J1 §5).
+Le même nombre redonne le même découpage, donc la même mesure.</p>
+<h3>Les outils</h3>
+<pre><code># les outils
+# Aucun import en bloc au début : chaque module entre dans le carnet au moment de son premier
+# usage. On voit ainsi à quoi il sert, au lieu de le deviner dans une liste.
+
+# `display` : un tableau s&#x27;affiche proprement dans un carnet, et reste lisible ailleurs.
+# C&#x27;est par `display` qu&#x27;on montre TOUTES les tables de ce carnet — jamais un print de texte.
+try:
+    from IPython.display import display
+except ImportError:
+    def display(x):
+        print(x)
+</code></pre>
+
+<h3>Les données</h3>
+<pre><code>import os
+import pandas as pd
+# où sont les fichiers — on CHERCHE `train.csv`, on ne suppose pas un chemin
+# (Kaggle a déjà déplacé ses points de montage : un chemin recopié se périme, une recherche non)
+def _trouver_dossier(racines):
+    &quot;&quot;&quot;Première racine contenant train.csv — en surface, puis en profondeur.&quot;&quot;&quot;
+    for racine in racines:
+        if not os.path.isdir(racine):
+            continue
+        if os.path.exists(os.path.join(racine, &quot;train.csv&quot;)):
+            return racine
+        for chemin, _, fichiers in os.walk(racine):
+            if &quot;train.csv&quot; in fichiers:
+                return chemin
+    return None
+
+DOSSIER = _trouver_dossier([&quot;/kaggle/input&quot;, &quot;sortie&quot;])
+assert DOSSIER, &quot;train.csv introuvable : les données de la compétition sont-elles montées ?&quot;
+
+print(&quot;le dossier des données trouvé :&quot;, DOSSIER)
+</code></pre>
+<pre class='out'>le dossier des données trouvé : sortie
+</pre>
+<pre><code>train = pd.read_csv(os.path.join(DOSSIER, &quot;train.csv&quot;), low_memory=False)
+test = pd.read_csv(os.path.join(DOSSIER, &quot;test.csv&quot;), low_memory=False)
+
+ID, CIBLE = &quot;ligne_id&quot;, &quot;patient_absent&quot;
+
+print(&quot;les deux tableaux \n&quot;)
+print(&quot;train :&quot;, train.shape, &quot;(lignes, colonnes)&quot;)
+print(&quot;test  :&quot;, test.shape, &quot;(lignes, colonnes)&quot;)
+
+print(&quot;les cinq premières lignes \n&quot;)
+display(train.head())
+</code></pre>
+<pre class='out'>les deux tableaux 
+
+train : (149894, 39) (lignes, colonnes)
+test  : (63721, 38) (lignes, colonnes)
+les cinq premières lignes 
+
+    dossier_id  ligne_id  ... taux_absence_passe patient_absent
+0  DOS-0127912    127913  ...                0.0              1
+1  DOS-0002883      2884  ...                0.0              0
+2  DOS-0098561     98562  ...                0.0              0
+3  DOS-0133156    133157  ...                0.0              0
+4  DOS-0055744     55745  ...                0.0              0
+
+[5 rows x 39 columns]
+</pre>
+<h3>La table de travail</h3>
+<pre><code>A_ECARTER = [ID, &quot;dossier_id&quot;, &quot;patient_id&quot;, &quot;duree_consultation&quot;, &quot;constantes_relevees&quot;,
+             &quot;motif_absence&quot;, &quot;date_prise&quot;, &quot;date_rdv&quot;, &quot;taille_cm&quot;, &quot;date_naissance&quot;,
+             &quot;canal_prise&quot;]
+
+def matrice(cols):
+    &quot;&quot;&quot;La table de travail : colonnes écartées retirées, catégorielles déclarées.&quot;&quot;&quot;
+    X = cols.drop(columns=[c for c in A_ECARTER + [CIBLE] if c in cols.columns]).copy()
+    cat = [c for c in X.columns if not pd.api.types.is_numeric_dtype(X[c])]
+    trop_fin = [c for c in cat if X[c].nunique() &gt; 255]
+    X = X.drop(columns=trop_fin)
+    cat = [c for c in cat if c not in trop_fin]
+    for c in cat:
+        X[c] = X[c].fillna(&quot;&quot;).astype(&quot;category&quot;)
+    return X, cat, trop_fin
+
+X, CAT, TROP_FIN = matrice(train)
+Xt, _, _ = matrice(test)
+
+for c in CAT:
+    Xt[c] = Xt[c].cat.set_categories(X[c].cat.categories)
+
+print(&quot;la table de travail \n&quot;)
+print(&quot;colonnes conservées :&quot;, X.shape[1])
+print(&quot;colonnes écartées (cardinalité trop forte) :&quot;, TROP_FIN)
+print(&quot;colonnes catégorielles :&quot;, CAT)
+</code></pre>
+<pre class='out'>la table de travail 
+
+colonnes conservées : 26
+colonnes écartées (cardinalité trop forte) : [&#x27;tournee_jour&#x27;]
+colonnes catégorielles : [&#x27;clinique&#x27;, &#x27;district&#x27;, &#x27;sexe&#x27;, &#x27;quartier&#x27;, &#x27;assurance&#x27;, &#x27;rappel_envoye&#x27;, &#x27;zone_clinique&#x27;]
+</pre>
+<h3>La cible, et la référence</h3>
+<pre><code>print(&quot;la distribution de la cible \n&quot;)
+repartition = pd.DataFrame({&quot;lignes&quot;: [len(train), int(train[CIBLE].sum())],
+                            &quot;part (%)&quot;: [100.0, round(100 * train[CIBLE].mean(), 2)]},
+                           index=[&quot;toutes&quot;, &quot;absents&quot;])
+display(repartition)
+
+reference = 100 * max(train[CIBLE].mean(), 1 - train[CIBLE].mean())
+print(f&quot;la référence (répondre toujours la classe majoritaire) : {reference:.2f} %&quot;)
+</code></pre>
+<pre class='out'>la distribution de la cible 
+
+         lignes  part (%)
+toutes   149894    100.00
+absents   27357     18.25
+la référence (répondre toujours la classe majoritaire) : 81.75 %
+</pre>
+<pre><code># `y` entre ici ; la référence a déjà été calculée avec la distribution ci-dessus —
+# une seule définition, donc un seul chiffre imprimé (elle était calculée deux fois).
+y = train[CIBLE]
+</code></pre>
+
+<h3>Le rituel : annoncer avant de mesurer</h3>
+<pre><code># l&#x27;horloge entre ici : c&#x27;est elle qui rend une prédiction vérifiable
+from datetime import datetime
+
+ESSAIS = []
+PREDICTIONS = []
+
+def prevoir(essai, attendu, raison):
+    &quot;&quot;&quot;Écrit ce que vous attendez AVANT de mesurer — horodaté.
+       `noter(...)` refuse ensuite tout essai sans prédiction : l&#x27;ordre n&#x27;est pas demandé, il est
+       appliqué. Ce que cette fonction garantit, exactement : une prédiction EXISTAIT avant que la
+       ligne du tableau soit écrite. Elle ne date pas la mesure — le score lui arrive déjà calculé.
+       Pour la garantie complète, mesurez dans `essai(...)`, qui date la mesure lui-même.&quot;&quot;&quot;
+    PREDICTIONS[:] = [p for p in PREDICTIONS if p[&quot;essai&quot;] != essai]
+    PREDICTIONS.append({&quot;essai&quot;: essai, &quot;attendu&quot;: attendu, &quot;raison&quot;: raison,
+                        &quot;écrit à&quot;: datetime.now().strftime(&quot;%H:%M:%S&quot;)})
+    display(pd.DataFrame(PREDICTIONS))
+
+def essai(nom, mesure, changement=&quot;&quot;, attendu=&quot;&quot;):
+    &quot;&quot;&quot;Le chemin STRICT : la mesure est prise ICI, donc l&#x27;ordre (prédiction puis mesure) est prouvé.
+       `mesure` est une fonction sans argument qui rend le score, par exemple
+       `lambda: modele.score(Xval, yval)`. Refuse de mesurer sans prédiction.&quot;&quot;&quot;
+    prevu = [p for p in PREDICTIONS if p[&quot;essai&quot;] == nom]
+    if not prevu:
+        print(f&quot;refusé : aucune prédiction pour « {nom} ». Écrivez prevoir(...) d&#x27;abord.&quot;)
+        return None
+    score = 100 * mesure()
+    noter(nom, changement or &quot;voir la question&quot;, attendu or prevu[0][&quot;attendu&quot;], score)
+    return score
+
+def noter(hypothese, changement, attendu, score):
+    &quot;&quot;&quot;Ajoute une ligne au tableau. `attendu` : un signe et une raison, jamais une valeur.
+       Ré-exécuter une cellule REMPLACE la ligne de même `hypothèse` : elle ne la double pas.
+
+       REFUSE d&#x27;enregistrer un essai non annoncé — c&#x27;est la règle du cours, appliquée.
+       Ce qu&#x27;elle garantit, et rien de plus : une prédiction existait AVANT que cette ligne soit
+       écrite. Elle ne date pas la mesure — d&#x27;où `essai(...)` pour la garantie complète.&quot;&quot;&quot;
+    prevu = [p for p in PREDICTIONS if p[&quot;essai&quot;] == hypothese]
+    if not prevu:
+        print(f&quot;  refusé : aucune prédiction pour « {hypothese} ».&quot;)
+        print(&quot;  Écrivez prevoir(...) d&#x27;abord — l&#x27;ordre est vérifié, pas seulement demandé.&quot;)
+        return
+    ligne = {&quot;hypothèse&quot;: hypothese, &quot;changement&quot;: changement,
+             &quot;attendu&quot;: attendu, &quot;mesuré&quot;: round(score, 2),
+             &quot;prédiction écrite avant ?&quot;: &quot;oui, à &quot; + prevu[0][&quot;écrit à&quot;]}
+    ESSAIS[:] = [e for e in ESSAIS if e[&quot;hypothèse&quot;] != hypothese] + [ligne]
+    display(pd.DataFrame(ESSAIS))
+</code></pre>
+
+<h3>Ce qu’un score doit battre</h3>
+<p><strong>82,51 %</strong> ne dit pas qu’un modèle est bon. Cela dit qu’il fait un peu mieux que <strong>81,75 %</strong>,
+la réponse constante. Un score ne prend son sens <strong>que</strong> contre un concurrent nommé. En production,
+ce concurrent est rarement un autre modèle : c’est la <strong>règle métier</strong> en place. Elle tient en
+trois lignes, personne ne la maintient, et personne n’ose la remplacer.</p>
+<p>Ce qu’on regarde : <strong>quatre</strong> baselines mesurées sur le <strong>même</strong> jeu de validation. La réponse
+constante. Une règle métier bâtie sur le délai. Une seconde règle lue dans l’historique du patient.
+La famille linéaire. Puis l’écart du modèle <strong>à la réponse constante</strong>, exprimé en barres de bruit.
+Un écart plus petit que la barre n’est pas un gain : c’est du tirage.</p>
+<p>Les valeurs essayées s’arrêtent avant le délai le plus long de la table. Au-delà, la règle
+n’annoncerait plus rien — et ne rien annoncer donne la meilleure exactitude sur cette cible rare.</p>
+<p>Une chose que la mesure montre : la règle métier <strong>perd</strong> contre la réponse constante. Et la règle
+qui ne dirait jamais rien la <strong>vaudrait exactement</strong>.</p>
+<p>Ce que cette section <strong>ne tranche pas</strong> : ce que cela dit d’une exactitude sur une cible rare. La
+métrique de décision n’est pas encore posée, et c’est elle qui trancherait.</p>
+<pre><code># les baselines, sur le même jeu de validation — et la barre qui décide
+from sklearn.ensemble import HistGradientBoostingClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import train_test_split
+
+Xtr, Xval, ytr, yval = train_test_split(X, y, test_size=0.2, stratify=y, random_state=0)
+
+# 1) la réponse constante : le concurrent le plus bête, et le plus dur à battre
+constante = 100 * max(yval.mean(), 1 - yval.mean())
+
+# 2) la règle métier : « j&#x27;annonce une absence si le délai dépasse N jours ».
+#    N se choisit sur les lignes d&#x27;apprentissage, pas sur celles de contrôle.
+delai_max = int(Xtr[&#x27;delai_jours&#x27;].max())
+taux_par_seuil = {s: float(((Xtr[&#x27;delai_jours&#x27;] &gt; s).astype(int) == ytr).mean())
+                  for s in (0, 1, 3, 7, 14, 30) if s &lt; delai_max}
+seuil_appris = max(taux_par_seuil, key=taux_par_seuil.get)
+regle = (Xval[&#x27;delai_jours&#x27;] &gt; seuil_appris).astype(int)
+
+# et la règle qui ne dirait jamais rien ? c&#x27;est la réponse constante, au point près
+silence = (Xval[&#x27;delai_jours&#x27;] &gt; delai_max).astype(int)
+
+# 3) la famille linéaire : elle a besoin de nombres, on lui en prépare — la recette des
+#    séances précédentes (newton-cholesky : le solveur qui converge sur cette table)
+X_n = pd.get_dummies(X, columns=CAT).fillna(0)
+Xtr_n, Xval_n = X_n.loc[Xtr.index], X_n.loc[Xval.index]
+lineaire = LogisticRegression(solver=&#x27;newton-cholesky&#x27;).fit(Xtr_n, ytr)
+
+# 4) le modèle du cours, celui des séances précédentes
+modele = HistGradientBoostingClassifier(random_state=0).fit(Xtr, ytr)
+
+# la barre : l&#x27;erreur-type de l&#x27;exactitude sur CE jeu de validation
+barre = 100 * ((constante / 100) * (1 - constante / 100) / len(yval)) ** 0.5
+
+baselines = pd.DataFrame([
+    {&#x27;baseline&#x27;: &#x27;toujours présent&#x27;,
+     &#x27;exactitude (%)&#x27;: round(constante, 2)},
+    {&#x27;baseline&#x27;: f&#x27;règle métier — absent si le délai dépasse {seuil_appris} j&#x27;,
+     &#x27;exactitude (%)&#x27;: round(100 * (regle == yval).mean(), 2)},
+    {&#x27;baseline&#x27;: &#x27;absent si ce patient a déjà manqué un rendez-vous&#x27;,
+     &#x27;exactitude (%)&#x27;: round(100 * ((Xval[&#x27;taux_absence_passe&#x27;] &gt; 0).astype(int) == yval).mean(), 2)},
+    {&#x27;baseline&#x27;: &#x27;la famille linéaire&#x27;,
+     &#x27;exactitude (%)&#x27;: round(100 * lineaire.score(Xval_n, yval), 2)},
+    {&#x27;baseline&#x27;: &#x27;le modèle du cours&#x27;,
+     &#x27;exactitude (%)&#x27;: round(100 * modele.score(Xval, yval), 2)},
+])
+display(baselines)
+
+ecart = 100 * modele.score(Xval, yval) - constante
+print(f&#x27;→ le modèle dépasse la réponse constante de {ecart:+.2f} point,&#x27;)
+print(f&#x27;  soit {ecart / barre:.1f} erreurs-types de ce jeu de validation ({barre:.2f} point).&#x27;)
+print(f&#x27;  la règle métier, elle, fait {100 * (regle == yval).mean():.2f} % : elle alerte sur&#x27;)
+print(f&#x27;  {int(regle.sum())} lignes et perd contre la réponse constante.&#x27;)
+print(f&#x27;  et la règle qui ne dirait jamais rien ferait {100 * (silence == yval).mean():.2f} % —&#x27;)
+print(&#x27;  exactement la réponse constante. Une règle en place se mesure avant d’être opposée&#x27;)
+print(&#x27;  à un modèle ; ce que cela dit d’une exactitude reste ouvert.&#x27;)
+</code></pre>
+<pre class='out'>                                            baseline  exactitude (%)
+0                                   toujours présent           81.75
+1     règle métier — absent si le délai dépasse 30 j           79.92
+2  absent si ce patient a déjà manqué un rendez-vous           78.65
+3                                la famille linéaire           82.21
+4                                 le modèle du cours           82.51
+→ le modèle dépasse la réponse constante de +0.76 point,
+  soit 3.4 erreurs-types de ce jeu de validation (0.22 point).
+  la règle métier, elle, fait 79.92 % : elle alerte sur
+  1572 lignes et perd contre la réponse constante.
+  et la règle qui ne dirait jamais rien ferait 81.75 % —
+  exactement la réponse constante. Une règle en place se mesure avant d’être opposée
+  à un modèle ; ce que cela dit d’une exactitude reste ouvert.
+</pre>
+<blockquote>
+<p><strong>Question →</strong> <code>Devoir_maison_2.ipynb</code>, <strong>question 1 (carnet J3)</strong> — les baselines de votre main, l'écart divisé par la barre.</p>
+</blockquote>
+<h3>Le test est sacré, et le piège du public</h3>
+<p>Un leaderboard public se lit comme une mesure. C’est un <strong>échantillon</strong>, et un petit. Sur mille
+lignes, deux modèles qui valent la même chose n’obtiennent pas le même score. Choisir le premier
+du public, c’est souvent choisir <strong>le plus chanceux</strong>. Le piège n’est pas de soumettre : c’est de
+<strong>décider</strong> sur ce que le public montre.</p>
+<p>Ce qu’on regarde : douze variantes jugées sur un public de <strong>1 000 lignes</strong>, puis re-mesurées sur
+<strong>3 000 lignes que personne n’a regardées</strong>. Les deux classements sont-ils le même ? La cellule
+prend <strong>≈ 2 minutes</strong> : c’est le prix de la démonstration, et il se paie une fois.</p>
+<p>Ce que cette section <strong>ne tranche pas</strong> : laquelle de ces douze variantes mériterait d’être
+soumise. Choisir, c’est décider sur un échantillon — et c’est ce que la suite mesure.</p>
+<pre><code># le leaderboard, monté en petit : 1 000 lignes de public, 3 000 de privé jamais regardées
+import numpy as np
+
+# le rituel du cours : on écrit ce qu&#x27;on attend avant de mesurer — sinon `noter` refuse la ligne
+prevoir(&quot;le classement du public&quot;,
+        &quot;le premier du public reste le premier du privé&quot;,
+        &quot;le public est un petit échantillon : son classement est du bruit&quot;)
+
+Xdev, Xreste, ydev, yreste = train_test_split(X, y, test_size=4000, stratify=y, random_state=0)
+Xpub, Xpriv, ypub, ypriv = train_test_split(Xreste, yreste, test_size=3000, stratify=yreste, random_state=0)
+
+reglages = ((20, 3), (20, 5), (20, 10), (20, 31), (40, 5), (40, 10),
+            (60, 5), (60, 31), (80, 10), (100, 5), (150, 10), (200, 31))
+variantes = []
+for max_iter, feuilles in reglages:
+    m = HistGradientBoostingClassifier(max_iter=max_iter, max_leaf_nodes=feuilles,
+                                       random_state=0).fit(Xdev, ydev)
+    variantes.append({&#x27;variante&#x27;: f&#x27;max_iter={max_iter} · feuilles={feuilles}&#x27;,
+                      &#x27;public (%)&#x27;: round(100 * m.score(Xpub, ypub), 2),
+                      &#x27;privé (%)&#x27;: round(100 * m.score(Xpriv, ypriv), 2)})
+
+tableau = pd.DataFrame(variantes).sort_values(&#x27;public (%)&#x27;, ascending=False).reset_index(drop=True)
+display(tableau)
+
+premier, dernier = tableau.iloc[0], tableau.iloc[-1]
+print(f&#x27;→ le premier du public : {premier[&quot;public (%)&quot;]:.2f} % au public, {premier[&quot;privé (%)&quot;]:.2f} % au privé.&#x27;)
+print(f&#x27;  le dernier du public  : {dernier[&quot;public (%)&quot;]:.2f} % au public, {dernier[&quot;privé (%)&quot;]:.2f} % au privé.&#x27;)
+correlation = float(np.corrcoef(tableau[&#x27;public (%)&#x27;], tableau[&#x27;privé (%)&#x27;])[0, 1])
+print(f&#x27;  corrélation du public et du privé, sur ces douze variantes : {correlation:.3f}&#x27;)
+quatre_public = tableau.head(4)[&#x27;variante&#x27;].tolist()
+quatre_prive = pd.DataFrame(variantes).sort_values(&#x27;privé (%)&#x27;, ascending=False).head(4)[&#x27;variante&#x27;].tolist()
+print(f&#x27;  parmi les quatre premiers du public, {len([v for v in quatre_prive if v in quatre_public])} sont dans les quatre premiers du privé.&#x27;)
+erreur_type_public = 100 * (ypub.mean() * (1 - ypub.mean()) / len(ypub)) ** 0.5
+etendue_public = tableau[&#x27;public (%)&#x27;].max() - tableau[&#x27;public (%)&#x27;].min()
+print(f&#x27;  l erreur-type d une exactitude sur {len(ypub)} lignes : {erreur_type_public:.2f} point —&#x27;)
+print(f&#x27;  pour des variantes étalées sur {etendue_public:.2f} point. Le classement tient dans&#x27;)
+print(&#x27;  le bruit de l échantillon qui le produit.&#x27;)
+print(&#x27;→ un classement qui ne se retrouve pas d’un jeu à l’autre ne classe rien :&#x27;)
+print(&#x27;  il trie le hasard, et l’on croit avoir choisi le meilleur modèle.&#x27;)
+
+# et la ligne d&#x27;essai : l&#x27;attendu était écrit avant, le mesuré arrive ici
+noter(&quot;le classement du public&quot;, &quot;douze variantes, un public de 1 000 lignes&quot;,
+      &quot;le premier du public reste premier&quot;, float(tableau.loc[0, &quot;privé (%)&quot;]))
+</code></pre>
+<pre class='out'>                     essai  ...   écrit à
+0  le classement du public  ...  12:38:44
+
+[1 rows x 4 columns]
+                      variante  public (%)  privé (%)
+0    max_iter=20 · feuilles=10        81.7      82.67
+1     max_iter=20 · feuilles=3        81.6      81.80
+2    max_iter=40 · feuilles=10        81.6      82.67
+3    max_iter=80 · feuilles=10        81.6      82.80
+4   max_iter=150 · feuilles=10        81.6      82.80
+5     max_iter=20 · feuilles=5        81.5      82.23
+6     max_iter=40 · feuilles=5        81.4      82.57
+7     max_iter=60 · feuilles=5        81.4      82.53
+8    max_iter=60 · feuilles=31        81.4      82.80
+9   max_iter=200 · feuilles=31        81.4      82.80
+10   max_iter=20 · feuilles=31        81.3      82.63
+11   max_iter=100 · feuilles=5        81.3      82.53
+→ le premier du public : 81.70 % au public, 82.67 % au privé.
+  le dernier du public  : 81.30 % au public, 82.53 % au privé.
+  corrélation du public et du privé, sur ces douze variantes : -0.109
+  parmi les quatre premiers du public, 1 sont dans les quatre premiers du privé.
+  l erreur-type d une exactitude sur 1000 lignes : 1.22 point —
+  pour des variantes étalées sur 0.40 point. Le classement tient dans
+  le bruit de l échantillon qui le produit.
+→ un classement qui ne se retrouve pas d’un jeu à l’autre ne classe rien :
+  il trie le hasard, et l’on croit avoir choisi le meilleur modèle.
+                 hypothèse  ... prédiction écrite avant ?
+0  le classement du public  ...           oui, à 12:38:44
+
+[1 rows x 5 columns]
+</pre>
+<blockquote>
+<p><strong>Question →</strong> <code>Devoir_maison_2.ipynb</code>, <strong>question 2 (carnet J3)</strong> — le classement du public tient-il ?</p>
+</blockquote>
+<h3>Un gain de 0,2 point est-il un gain ?</h3>
+<p>Le même modèle, entraîné deux fois, ne rend pas le même score : le découpage change, donc la
+mesure change. La question n’est jamais « le score a-t-il monté ? », mais « <strong>de combien</strong> a-t-il
+bougé, et ce changement fait-il plus que ce que le hasard fait tout seul ? ».</p>
+<p>La barre du cours est l’<strong>erreur-type d’une exactitude</strong> : <strong>± 0,22 point</strong> sur 29 979 lignes de
+validation. Un écart ne se lit qu’à partir du <strong>double</strong>, soit 0,44 — deux erreurs-types,
+c’est-à-dire environ 95 % des tirages sous une loi normale. Ce n’est pas une « règle du cours »
+sortie de nulle part : c’est la dispersion d’une mesure sur cet échantillon-là, et elle se calcule.</p>
+<p>Ce qu’on regarde : cinq graines sur le même modèle, c’est-à-dire la dispersion que personne ne
+choisit. Puis deux modèles comparés sur <strong>un seul et même</strong> découpage.</p>
+<p>La dispersion des cinq tirages est <strong>plus petite</strong> que la barre, et c’est normal. Les cinq
+découpages partagent les mêmes lignes, donc leurs jeux de contrôle se recouvrent. Ce ne sont pas
+les mêmes grandeurs : la barre juge un écart à la réponse constante, pas un écart entre deux
+modèles.</p>
+<p>Ce que cette section <strong>ne tranche pas</strong> : deux modèles jugés sur le même échantillon se testent
+par un test <strong>apparié</strong>. La notion est nommée ici, elle n’est pas développée.</p>
+<pre><code># cinq découpages, le même modèle : la dispersion que personne ne choisit
+graines = []
+for graine in range(5):
+    X_appris, X_controle, y_appris, y_controle = train_test_split(
+        X, y, test_size=0.2, stratify=y, random_state=graine)
+    m = HistGradientBoostingClassifier(random_state=0).fit(X_appris, y_appris)
+    graines.append(round(100 * m.score(X_controle, y_controle), 2))
+
+ecart_type = float(np.std(graines, ddof=1))
+print(&#x27;les cinq scores :&#x27;, graines)
+print(f&#x27;  moyenne {np.mean(graines):.2f} · écart-type {ecart_type:.3f} · étendue {max(graines) - min(graines):.2f} point&#x27;)
+print(f&#x27;  à comparer à la barre d’une exactitude sur {len(yval)} lignes : {barre:.2f} point.&#x27;)
+print(&#x27;  plus petite, et c’est normal : les cinq tirages partagent les mêmes lignes, donc leurs&#x27;)
+print(&#x27;  jeux de contrôle se recouvrent — deux grandeurs différentes, qui ne jugent pas la même&#x27;)
+print(&#x27;  chose.&#x27;)
+
+# et deux modèles, sur le même découpage — la seule comparaison honnête
+# `early_stopping=False` : sans lui, l&#x27;arrêt anticipé borne les deux au même arbre.
+court = HistGradientBoostingClassifier(max_iter=60, random_state=0, early_stopping=False).fit(Xtr, ytr)
+long = HistGradientBoostingClassifier(max_iter=120, random_state=0, early_stopping=False).fit(Xtr, ytr)
+ecart = 100 * long.score(Xval, yval) - 100 * court.score(Xval, yval)
+print(f&#x27;  deux modèles ({court.n_iter_} arbres contre {long.n_iter_}), un seul découpage : {ecart:+.2f} point&#x27;)
+print(f&#x27;  la barre vaut {barre:.2f} point, son double {2 * round(barre, 2):.2f} — la règle du cours.&#x27;)
+print(&#x27;→ un écart plus petit que la barre n’apprend rien : il faut le même découpage, et la barre.&#x27;)
+</code></pre>
+<pre class='out'>les cinq scores : [82.51, 82.52, 82.39, 82.42, 82.52]
+  moyenne 82.47 · écart-type 0.062 · étendue 0.13 point
+  à comparer à la barre d’une exactitude sur 29979 lignes : 0.22 point.
+  plus petite, et c’est normal : les cinq tirages partagent les mêmes lignes, donc leurs
+  jeux de contrôle se recouvrent — deux grandeurs différentes, qui ne jugent pas la même
+  chose.
+  deux modèles (60 arbres contre 120), un seul découpage : -0.04 point
+  la barre vaut 0.22 point, son double 0.44 — la règle du cours.
+→ un écart plus petit que la barre n’apprend rien : il faut le même découpage, et la barre.
+</pre>
+<blockquote>
+<p><strong>Question →</strong> <code>Devoir_maison_2.ipynb</code>, <strong>question 3 (carnet J3)</strong> — deux modèles, un seul découpage.</p>
+</blockquote>
+<h3>Le tableau à quatre colonnes</h3>
+<p>C'est le tableau qui ferme la comparaison : <strong>modèle · validation · public · écart</strong>. Il ne sert
+pas à désigner un vainqueur, il sert à lire l'écart entre ce que vous mesurez chez vous et ce que
+le public affiche. Quand la validation monte et que le public stagne, ce n'est pas le modèle qui a
+progressé : c'est vous qui avez appris le public.</p>
+<p>Ce qu'on regarde : le tableau rempli avec ce qui est mesurable ici — la colonne du public
+n'existe que pour un modèle <strong>effectivement soumis</strong>.</p>
+<p>Ce que cette section <strong>ne tranche pas</strong> : quelle ligne de ce tableau mérite d'être déployée. Le
+tableau lit un écart, il ne désigne pas un vainqueur.</p>
+<pre><code># le tableau à quatre colonnes : les scores mesurés ici, et le public relevé à la soumission
+lignes = []
+for nom, decision in ((&#x27;toujours présent&#x27;, np.zeros(len(yval), dtype=int)),
+                      (f&#x27;règle métier (délai &gt; {seuil_appris} j)&#x27;, regle),
+                      (&#x27;le modèle du cours&#x27;, modele.predict(Xval))):
+    lignes.append({&#x27;modèle&#x27;: nom,
+                   &#x27;validation (%)&#x27;: round(100 * (decision == yval).mean(), 2)})
+tableau_quatre = pd.DataFrame(lignes)
+# le public ne se remplit que pour un modèle réellement soumis : ici, un seul
+tableau_quatre[&#x27;public (%)&#x27;] = [None, None, 81.81]   # le seul score public du cours : celui de la séance 1
+tableau_quatre[&#x27;écart&#x27;] = (tableau_quatre[&#x27;public (%)&#x27;] - tableau_quatre[&#x27;validation (%)&#x27;]).round(2)
+display(tableau_quatre)
+print(&#x27;→ une colonne vide n’est pas un oubli : c’est un modèle qui n’a pas été soumis.&#x27;)
+print(&#x27;  Un écart sain est petit. Un écart qui grandit veut dire que le public a servi de guide.&#x27;)
+</code></pre>
+<pre class='out'>                        modèle  validation (%)  public (%)  écart
+0             toujours présent           81.75         NaN    NaN
+1  règle métier (délai &gt; 30 j)           79.92         NaN    NaN
+2           le modèle du cours           82.51       81.81   -0.7
+→ une colonne vide n’est pas un oubli : c’est un modèle qui n’a pas été soumis.
+  Un écart sain est petit. Un écart qui grandit veut dire que le public a servi de guide.
+</pre>
+<blockquote>
+<p><strong>Question →</strong> <code>Devoir_maison_2.ipynb</code>, <strong>question 4 (carnet J3)</strong> — votre tableau à quatre colonnes.</p>
+</blockquote>
+<h3>Le plafond — ce que les données permettent</h3>
+<p>La séance précédente a laissé une question ouverte. On a entraîné un modèle, il bat la référence.
+Jusqu’où peut-on monter ?</p>
+<p><strong>Trois familles très différentes</strong> — des arbres entraînés par corrections successives, un arbre
+unique, un modèle linéaire — donnent ici presque le même chiffre. Ce n’est pas un hasard. Quand
+trois familles qui ne partagent pas leur mécanisme plafonnent au même endroit, le plafond n’est
+pas dans le modèle. <strong>Il est dans les données</strong> — et le savoir évite de chercher pendant six mois
+ce qui n’existe pas.</p>
+<p>Ce que cette section <strong>ne tranche pas</strong> : si une autre famille ferait mieux. Elle mesure un
+plafond, elle n’épuise pas le catalogue.</p>
+<pre><code># les trois familles : elles entrent ici
+from sklearn.tree import DecisionTreeClassifier
+
+# le découpage, la table d&#x27;indicatrices et le linéaire viennent de la section précédente :
+# ce carnet n&#x27;en donne qu&#x27;une définition, et c&#x27;est elle qui sert partout.
+print(&quot;trois familles, la même table, la même mesure \n&quot;)
+scores = {}
+for nom, famille, donnees in (
+        (&quot;arbres (boosting)&quot;, HistGradientBoostingClassifier(random_state=0), (Xtr, Xval)),
+        (&quot;un arbre unique&quot;, DecisionTreeClassifier(random_state=0, max_depth=8), (Xtr_n, Xval_n)),
+        (&quot;modèle linéaire&quot;, LogisticRegression(solver=&quot;newton-cholesky&quot;), (Xtr_n, Xval_n))):
+    a, b = donnees
+    scores[nom] = 100 * famille.fit(a, ytr).score(b, yval)
+    print(f&quot;  {nom:&lt;22} {scores[nom]:6.2f} %&quot;)
+
+print(&quot;\nl&#x27;écart entre la meilleure et la moins bonne famille :&quot;,
+      round(max(scores.values()) - min(scores.values()), 2), &quot;point(s).&quot;)
+print(&quot;→ le plafond n&#x27;est pas dans le modèle.&quot;)
+</code></pre>
+<pre class='out'>trois familles, la même table, la même mesure 
+
+  arbres (boosting)       82.51 %
+  un arbre unique         82.37 %
+  modèle linéaire         82.21 %
+
+l&#x27;écart entre la meilleure et la moins bonne famille : 0.3 point(s).
+→ le plafond n&#x27;est pas dans le modèle.
+</pre>
+<blockquote>
+<p><strong>Question →</strong> <code>Devoir_maison_2.ipynb</code>, <strong>question 5 (carnet J3) (1/2)</strong> — le plafond, et les étiquettes.</p>
+</blockquote>
+<h4>Et l’autre cause du plafond : des étiquettes fausses</h4>
+<p>Le plafond peut venir des données. Il peut aussi venir des <strong>étiquettes elles-mêmes</strong>. Personne
+n’annote parfaitement, et un annotateur qui se trompe ne se trompe pas comme un modèle.</p>
+<p>On le simule : on <strong>retourne une part des étiquettes d’entraînement</strong> (0 %, 15 %, 30 %), et on
+mesure sur une validation <strong>intacte</strong>. Sinon on mesurerait le bruit, pas ce qu’il coûte. La
+question n’est pas « le score baisse-t-il ? » mais « <strong>sur quel modèle</strong> le bruit mord-il ? ». La
+réponse se lit sur deux colonnes : les deux modèles de la séance précédente cohabitent ici.</p>
+<p>Ce que cette section <strong>ne tranche pas</strong> : d’où viennent les étiquettes fausses. Un carnet ne
+corrige pas l’annotation.</p>
+<pre><code># le bruit d&#x27;étiquette : la même table, avec des étiquettes d&#x27;entraînement abîmées.
+# On mesure sur une validation intacte — sinon on mesure le bruit, pas ce qu&#x27;il coûte.
+brouille = []
+for part in (0.0, 0.15, 0.30):
+    if part:
+        touchees = ytr.sample(frac=part, random_state=0).index
+        y_appris = ytr.copy()
+        y_appris.loc[touchees] = 1 - y_appris.loc[touchees]
+    else:
+        y_appris = ytr
+
+    ligne = {&quot;étiquettes brouillées&quot;: f&quot;{int(100 * part)} %&quot;}
+
+    # l&#x27;ensemble d&#x27;arbres, celui de la séance précédente : il apprend peu — le bruit le touche peu
+    m = HistGradientBoostingClassifier(random_state=0).fit(Xtr, y_appris)
+    ligne[&quot;ensemble d&#x27;arbres (%)&quot;] = round(100 * m.score(Xval, yval), 2)
+
+    # un arbre seul, sans limite de profondeur : il apprend tout, y compris ce qu&#x27;on vient de
+    # brouiller. C&#x27;est celui de la démonstration « un arbre seul apprend la table par cœur ».
+    t = DecisionTreeClassifier(random_state=0).fit(Xtr_n, y_appris)
+    ligne[&quot;arbre seul, sans limite (%)&quot;] = round(100 * t.score(Xval_n, yval), 2)
+
+    brouille.append(ligne)
+
+print(&quot;la même table, des étiquettes abîmées à des degrés différents \n&quot;)
+display(pd.DataFrame(brouille))
+print(&quot;→ le bruit d&#x27;étiquette ne mord pas sur un modèle qui apprend peu : il mord sur celui qui&quot;)
+print(&quot;  apprend tout. C&#x27;est un signe qui ne trompe pas — et il se lit sur deux colonnes.&quot;)
+</code></pre>
+<pre class='out'>la même table, des étiquettes abîmées à des degrés différents 
+
+  étiquettes brouillées  ensemble d&#x27;arbres (%)  arbre seul, sans limite (%)
+0                   0 %                  82.51                        73.74
+1                  15 %                  82.46                        66.73
+2                  30 %                  82.18                        59.56
+→ le bruit d&#x27;étiquette ne mord pas sur un modèle qui apprend peu : il mord sur celui qui
+  apprend tout. C&#x27;est un signe qui ne trompe pas — et il se lit sur deux colonnes.
+</pre>
+<blockquote>
+<p><strong>Question →</strong> <code>Devoir_maison_2.ipynb</code>, <strong>question 5 (carnet J3) (2/2)</strong> — le bruit d'étiquette, et le modèle qu'il abîme.</p>
+</blockquote>
+<h3>Un trou n’est pas toujours un trou</h3>
+<p>Un trou dans une colonne n’a pas toujours la même valeur. Parfois la valeur manque <strong>au hasard</strong>.
+Le trou ne dit rien de la ligne, il dit seulement qu’on ne l’a pas notée. Parfois, au contraire,
+le fait qu’elle manque est en soi une information. Le combler, c’est effacer cette information.</p>
+<p>La règle qui suit : <strong>avant d’imputer, on regarde ce que le trou vaut.</strong> C’est la décision la plus
+fréquente du métier. Les débutants la prennent à l’envers : ils comblent d’abord, ils regardent
+ensuite.</p>
+<p>Ce que cette section <strong>ne tranche pas</strong> : quelle décision prendre pour une colonne donnée. Elle se
+tranche colonne par colonne.</p>
+<h4>La méthode : ce que vaut un trou, avant de le combler</h4>
+<p>On ne devine pas si un trou est aléatoire : on le <strong>mesure</strong>. Pour une colonne, on compare le
+taux d’absence des lignes où elle <strong>manque</strong> à celui des lignes où elle est <strong>remplie</strong>. S’ils se
+ressemblent, la valeur manque sans rien dire : c’est <strong>MCAR</strong> (<em>missing completely at random</em>).
+S’ils s’écartent, le fait de manquer porte de l’information : c’est <strong>MNAR</strong> (<em>missing not at
+random</em>). Le vocabulaire est celui du métier, et c’est lui qui sert à écrire la décision.</p>
+<p>Deux règles avant de comparer. Un : <strong>on ne compare que des groupes d’au moins 500 lignes</strong>, parce
+qu’un groupe de trente lignes a un taux qui bouge tout seul. Deux : on nomme <strong>le sens</strong> du taux
+qu’on cite.</p>
+<p>« 75 % de trous chez les absents » et « 32 % d’absents chez les lignes à trou » ne sont pas la même
+phrase. La première lit le trou <em>sachant la réponse</em>. La seconde lit la réponse <em>sachant le trou</em>.
+C’est la seconde qui sert à décider : en production, le trou est connu et la réponse ne l’est pas.</p>
+<p>Attention aussi : <strong>structuré ne veut pas dire fuite</strong>. Un trou structuré dont l’origine n’est pas
+la réponse est une information légitime, qu’on garde.</p>
+<pre><code># la méthode, sur les deux colonnes que cette section traite
+def etat_du_trou(table, colonne, plancher=500):
+    &quot;&quot;&quot;Les deux taux d&#x27;absence et les deux effectifs — refusés sous le plancher du cours.&quot;&quot;&quot;
+    manque = table[colonne].isna()
+    n_manque, n_rempli = int(manque.sum()), int((~manque).sum())
+    if min(n_manque, n_rempli) &lt; plancher:
+        return None
+    return {&#x27;colonne&#x27;: colonne,
+            &#x27;n si ça manque&#x27;: n_manque, &#x27;n si c’est rempli&#x27;: n_rempli,
+            &#x27;taux d’absence si manque (%)&#x27;: round(100 * table.loc[manque, CIBLE].mean(), 2),
+            &#x27;taux d’absence si rempli (%)&#x27;: round(100 * table.loc[~manque, CIBLE].mean(), 2)}
+
+a_trous = [c for c in train.columns if train[c].isna().any()]
+trop_fins = [c for c in a_trous if min(int(train[c].isna().sum()), int(train[c].notna().sum())) &lt; 500]
+print(f&quot;le taux d&#x27;absence global, pour situer : {100 * train[CIBLE].mean():.2f} % \n&quot;)
+print(&quot;les colonnes écartées du tableau (un groupe sous le plancher de 500) :&quot;, trop_fins)
+display(pd.DataFrame([etat_du_trou(train, c) for c in (&quot;solde_credit&quot;, &quot;constantes_relevees&quot;)]))
+print(&quot;→ deux taux qui se ressemblent : trou aléatoire (MCAR) ; deux taux qui s&#x27;écartent : trou&quot;)
+print(&quot;  structuré (MNAR) — et ce trou-là porte de l&#x27;information, qu&#x27;imputer efface.&quot;)
+</code></pre>
+<pre class='out'>le taux d&#x27;absence global, pour situer : 18.25 % 
+
+les colonnes écartées du tableau (un groupe sous le plancher de 500) : [&#x27;date_naissance&#x27;]
+               colonne  ...  taux d’absence si rempli (%)
+0         solde_credit  ...                         18.27
+1  constantes_relevees  ...                          8.03
+
+[2 rows x 5 columns]
+→ deux taux qui se ressemblent : trou aléatoire (MCAR) ; deux taux qui s&#x27;écartent : trou
+  structuré (MNAR) — et ce trou-là porte de l&#x27;information, qu&#x27;imputer efface.
+</pre>
+<pre><code># un trou aléatoire : cinq traitements, et ce que chacun change
+def score_de(Xe, ye=None):
+    &quot;&quot;&quot;Entraîne et mesure, toujours sur la même découpe.&quot;&quot;&quot;
+    ye = y if ye is None else ye
+    Xtr_m, Xval_m, ytr_m, yval_m = train_test_split(Xe, ye, test_size=0.2, stratify=ye, random_state=0)
+    return 100 * HistGradientBoostingClassifier(random_state=0).fit(Xtr_m, ytr_m).score(Xval_m, yval_m)
+
+# le même découpage, les lignes retirées seulement côté apprentissage : le jeu de contrôle
+# ne change pas, donc les deux scores se comparent vraiment — ce que `score_de` ne fait pas
+def score_sans_lignes(masque):
+    &quot;&quot;&quot;Retire des lignes du seul côté apprentissage, et mesure sur le même jeu de contrôle.&quot;&quot;&quot;
+    garde = masque.loc[Xtr.index]
+    return 100 * HistGradientBoostingClassifier(random_state=0).fit(
+        Xtr[garde], ytr[garde]).score(Xval, yval)
+
+colonne = &quot;solde_credit&quot;
+mediane = X.copy()
+mediane[colonne] = mediane[colonne].fillna(mediane[colonne].median())
+avec_indicateur = mediane.copy()
+avec_indicateur[colonne + &quot;_etait_vide&quot;] = X[colonne].isna().astype(int)
+masque = X[colonne].notna()
+
+print(f&quot;la colonne {colonne}, cinq traitements du même trou \n&quot;)
+print(f&quot;  laissé tel quel            {score_de(X):6.2f} %&quot;)
+print(f&quot;  colonne retirée            {score_de(X.drop(columns=[colonne])):6.2f} %&quot;)
+print(f&quot;  trou comblé par la médiane {score_de(mediane):6.2f} %&quot;)
+print(f&quot;  médiane + indicateur       {score_de(avec_indicateur):6.2f} %&quot;)
+print(f&quot;  lignes à trou supprimées   {score_sans_lignes(masque):6.2f} %&quot;)
+print(&quot;\n→ un trou aléatoire ne vaut rien : les cinq chiffres se tiennent à quelques centièmes.&quot;)
+</code></pre>
+<pre class='out'>la colonne solde_credit, cinq traitements du même trou 
+
+  laissé tel quel             82.51 %
+  colonne retirée             82.46 %
+  trou comblé par la médiane  82.43 %
+  médiane + indicateur        82.43 %
+  lignes à trou supprimées    82.47 %
+
+→ un trou aléatoire ne vaut rien : les cinq chiffres se tiennent à quelques centièmes.
+</pre>
+<pre><code># un trou structurel : le même geste, un autre résultat
+constantes = train[&quot;constantes_relevees&quot;].fillna(&quot;&quot;).astype(&quot;category&quot;)
+# le mode est calculé, jamais écrit à la main : c’est le choix qu’on dit avoir fait
+mode_complet = constantes.mode()[0]
+
+X_garde = X.copy()
+X_garde[&quot;constantes_relevees&quot;] = constantes
+
+X_comble = X.copy()
+# combler par le mode fusionne le trou avec la valeur qui existe déjà le plus souvent :
+# « non renseigné » et « complet » deviennent indistinguables — c’est le geste qui efface
+X_comble[&quot;constantes_relevees&quot;] = constantes.astype(str).replace(&quot;&quot;, mode_complet).astype(&quot;category&quot;)
+
+print(&quot;la même colonne, trois traitements du même trou \n&quot;)
+print(f&quot;  le trou gardé comme catégorie  {score_de(X_garde):6.2f} %&quot;)
+print(f&quot;  le trou comblé par le mode ({mode_complet})  {score_de(X_comble):6.2f} %&quot;)
+print(f&quot;  la colonne retirée             {score_de(X):6.2f} %&quot;)
+
+print(&quot;\n→ ici, garder le trou vaut plus que le combler. Le trou porte de l’information :&quot;)
+print(&quot;  imputer sans regarder l’avait effacée — et c’est ce que cette section mesure.&quot;)
+</code></pre>
+<pre class='out'>la même colonne, trois traitements du même trou 
+
+  le trou gardé comme catégorie   83.23 %
+  le trou comblé par le mode (complet)   82.60 %
+  la colonne retirée              82.51 %
+
+→ ici, garder le trou vaut plus que le combler. Le trou porte de l’information :
+  imputer sans regarder l’avait effacée — et c’est ce que cette section mesure.
+</pre>
+<h4>Ce que ce trou est vraiment : une fuite</h4>
+<p>D’où vient ce trou ? Le générateur de cette table répond : « manquant structurel causé par la
+cible ». <strong>75 %</strong> de trous chez les absents, <strong>35 %</strong> chez les présents. Le trou suit donc la
+<strong>réponse</strong>. Et une colonne dont le trou suit la réponse est une <strong>fuite</strong> — la même famille que
+<code>motif_absence</code>, en plus discret.</p>
+<p>Comme le trou est produit dans les <strong>deux</strong> tables, elle ne se contente pas de gagner en interne :
+elle gagne <strong>aussi</strong> au classement. C’est la seule fuite du cours qui <strong>survit</strong> au découpage.
+Le contraste avec <code>canal_prise</code>, qui gagne en interne et perd au classement, est la leçon. Ce qui
+la trahit n’est pas sa stabilité : c’est l’<strong>origine</strong> de son trou.</p>
+<p><strong>La décision, donc :</strong> cette colonne est <strong>écartée</strong> — comme la table de travail le fait dès la
+mise en place. Le <strong>+0,72 point</strong> qu’elle rapporte quand on la garde n’est pas un gain. C’est la
+mesure de ce qu’une fuite rapporte, et <strong>ce chiffre n’est pas fiable</strong>.</p>
+<p>Ce que cette section <strong>ne tranche pas</strong> : si d’autres colonnes cachent la réponse de la même
+façon. C’est la traque que le devoir demande, et elle se fait signe par signe.</p>
+<blockquote>
+<p><strong>Question →</strong> <code>Devoir_maison_2.ipynb</code>, <strong>question 6 (carnet J3)</strong> — un trou aléatoire, un trou structuré.</p>
+</blockquote>
+<h3>Les décisions qui ne se voient pas dans le score</h3>
+<p>Reste une famille de décisions, celles qu’on prend tous les jours sans se poser de question.
+Supprimer une colonne constante. Écarter une colonne de bruit. Traiter un code sans documentation.
+Retirer une ligne dupliquée. Retirer une valeur impossible.</p>
+<p>On les mesure <strong>toutes</strong>, et le résultat est presque toujours le même : <strong>le score ne bouge pas.</strong>
+Ce n’est pas une déception, c’est un résultat. <strong>Le nettoyage change rarement le score. Il change
+ce que vous pouvez défendre</strong>, et ce qui survit quand les données changent.</p>
+<p>Ce que cette section <strong>ne tranche pas</strong> : lesquelles de ces décisions sont obligatoires. Aucune ne
+se joue sur le score.</p>
+<pre><code># les colonnes inutiles — la raison de chacune est dans la liste de la section
+inutiles = [c for c in (&quot;zone_clinique&quot;, &quot;indice_meteo_jour&quot;, &quot;score_territorial&quot;,
+                        &quot;age_mois&quot;, &quot;cout_acte&quot;) if c in X.columns]
+
+print(&quot;les colonnes qui n&#x27;apportent rien \n&quot;)
+print(&quot;  toutes les colonnes      &quot;, f&quot;{score_de(X):6.2f} %&quot;)
+print(f&quot;  sans {len(inutiles)} colonnes inutiles&quot;, f&quot;{score_de(X.drop(columns=inutiles)):6.2f} %&quot;)
+print(&quot;\n→ les cinq colonnes écartées, et la raison de chacune :&quot;)
+for c in inutiles:
+    print(&quot;   &quot;, c)
+</code></pre>
+<pre class='out'>les colonnes qui n&#x27;apportent rien 
+
+  toutes les colonnes        82.51 %
+  sans 5 colonnes inutiles  82.52 %
+
+→ les cinq colonnes écartées, et la raison de chacune :
+    zone_clinique
+    indice_meteo_jour
+    score_territorial
+    age_mois
+    cout_acte
+</pre>
+<pre><code># les catégories non documentées : un code arrive, personne ne sait ce qu&#x27;il vaut
+if &quot;code_assurance&quot; in X.columns:
+    inconnus = int(train[&quot;code_assurance&quot;].isin([7, 9]).sum())
+    print(&quot;les codes absents du dictionnaire publié \n&quot;)
+    print(&quot;  lignes concernées :&quot;, inconnus, f&quot;({100 * inconnus / len(train):.2f} %)&quot;)
+    print(&quot;  colonne gardée    :&quot;, f&quot;{score_de(X):6.2f} %&quot;)
+    sans_code = score_de(X.drop(columns=[&quot;code_assurance&quot;]))
+    print(&quot;  colonne retirée   :&quot;, f&quot;{sans_code:6.2f} %&quot;)
+    print(&quot;\n→ la décision ne se joue pas sur le score, mais sur ce qu&#x27;on peut dire de ce code :&quot;)
+    print(&quot;  le garder en sachant qu&#x27;il est inexpliqué, le rattacher, ou l&#x27;écarter — et pourquoi.&quot;)
+</code></pre>
+<pre class='out'>les codes absents du dictionnaire publié 
+
+  lignes concernées : 1898 (1.27 %)
+  colonne gardée    :  82.51 %
+  colonne retirée   :  82.50 %
+
+→ la décision ne se joue pas sur le score, mais sur ce qu&#x27;on peut dire de ce code :
+  le garder en sachant qu&#x27;il est inexpliqué, le rattacher, ou l&#x27;écarter — et pourquoi.
+</pre>
+<pre><code># les valeurs impossibles et les doublons
+impossibles = train[&quot;age&quot;] == -1
+sans_doublons = train.drop_duplicates()
+
+# les trois mesures sur le même découpage : `score_sans_lignes` ne retire que côté apprentissage
+base_nettoyage = score_de(X)
+sans_age = score_sans_lignes(~impossibles)
+sans_double = score_sans_lignes(~train.duplicated())
+
+print(&quot;les valeurs impossibles, et les doublons \n&quot;)
+print(f&quot;  rien touché                  {base_nettoyage:6.2f} %&quot;)
+print(f&quot;  âges impossibles retirés     {sans_age:6.2f} %&quot;)
+print(f&quot;  lignes dupliquées retirées   {sans_double:6.2f} %&quot;)
+
+print(f&quot;\n→ la correction des âges retire {int(impossibles.sum())} lignes ; l’écart tient dans&quot;)
+print(f&quot;  {abs(base_nettoyage - sans_age):.2f} point, soit {abs(base_nettoyage - sans_age) / barre:.2f} barre — sous la barre, donc : le score ne bouge pas.&quot;)
+print(&quot;  On jette de l’information avec le défaut — corriger n’est pas gratuit.&quot;)
+print(f&quot;  Les doublons, eux, ne retirent rien ({int(train.duplicated().sum())} ligne) : le score&quot;)
+print(&quot;  est identique, et c’est le résultat attendu — le défaut n’est pas dans cette table&quot;)
+print(&quot;  (J1, 2.4). Une décision qui ne change rien se note quand même : « vérifié, rien à faire »&quot;)
+print(&quot;  est une conclusion.&quot;)
+</code></pre>
+<pre class='out'>les valeurs impossibles, et les doublons 
+
+  rien touché                   82.51 %
+  âges impossibles retirés      82.50 %
+  lignes dupliquées retirées    82.51 %
+
+→ la correction des âges retire 46 lignes ; l’écart tient dans
+  0.00 point, soit 0.01 barre — sous la barre, donc : le score ne bouge pas.
+  On jette de l’information avec le défaut — corriger n’est pas gratuit.
+  Les doublons, eux, ne retirent rien (0 ligne) : le score
+  est identique, et c’est le résultat attendu — le défaut n’est pas dans cette table
+  (J1, 2.4). Une décision qui ne change rien se note quand même : « vérifié, rien à faire »
+  est une conclusion.
+</pre>
+<blockquote>
+<p><strong>Question →</strong> <code>Devoir_maison_2.ipynb</code>, <strong>question 7 (carnet J3) (1/2)</strong> — les décisions qui ne se voient pas dans le score.</p>
+</blockquote>
+<h3>Le journal de nettoyage, et le pipeline</h3>
+<p>Chaque décision est maintenant mesurée. On les rassemble dans <strong>un tableau</strong>, dans l’esprit du
+tableau d’essais de la séance précédente : <strong>décision · choix · effet mesuré</strong>. C’est ce tableau
+qu’on rend. C’est lui qui répond à la question d’un audit : <em>pourquoi avez-vous fait ça ?</em></p>
+<p>Puis on assemble : une seule fonction, de la table brute à la prédiction, qui porte toutes les
+décisions. C’est le <strong>pipeline</strong> — et c’est ce que j’exécuterai.</p>
+<p>Ce que cette section <strong>ne tranche pas</strong> : si ce pipeline est le bon découpage dans le temps. Il ne
+l’est pas, et la dernière section le mesure.</p>
+<pre><code># le journal de nettoyage — ce qui est lu n’est pas le score, c’est le tableau
+JOURNAL = []
+
+def journal(decision, choix, raison, effet):
+    &quot;&quot;&quot;Une décision, le choix fait, la raison qu’on donnerait à un audit, et l’effet mesuré
+       en points — avec la comparaison à la barre, qui dit si l’effet compte.&quot;&quot;&quot;
+    JOURNAL.append({&quot;décision&quot;: decision, &quot;choix&quot;: choix, &quot;raison (sans le score)&quot;: raison,
+                    &quot;effet mesuré&quot;: round(effet, 2),
+                    &quot;&gt; barre ?&quot;: &quot;oui&quot; if abs(effet) &gt; barre else &quot;non&quot;})
+    display(pd.DataFrame(JOURNAL))
+
+base = score_de(X)
+journal(&quot;un trou aléatoire&quot;, &quot;gardé tel quel&quot;,
+        &quot;le taux d’absence ne dépend pas du fait que la valeur manque (MCAR)&quot;,
+        score_de(X) - base)
+journal(&quot;un trou structurel&quot;, &quot;fuite — écartée&quot;,
+        &quot;le trou suit la réponse : la garder serait prédire avec la réponse&quot;,
+        score_de(X_garde) - base)
+journal(&quot;des colonnes inutiles&quot;, &quot;écartées&quot;,
+        &quot;constante, bruit pur, ou redondante avec une autre colonne&quot;,
+        score_de(X.drop(columns=inutiles)) - base)
+journal(&quot;un code non documenté&quot;, &quot;gardé, en le sachant inexpliqué&quot;,
+        &quot;aucun dictionnaire ne dit ce que valent 7 et 9 ; le retirer serait décider sans savoir&quot;,
+        sans_code - base)
+journal(&quot;une valeur impossible&quot;, &quot;lignes retirées&quot;,
+        &quot;un âge de −1 n’est pas un âge : la valeur est fausse, pas manquante&quot;,
+        sans_age - base)
+journal(&quot;des lignes dupliquées&quot;, &quot;vérifié, rien à faire&quot;,
+        &quot;aucune ligne dupliquée dans cette table (mesuré)&quot;,
+        sans_double - base)
+</code></pre>
+<pre class='out'>            décision           choix  ... effet mesuré  &gt; barre ?
+0  un trou aléatoire  gardé tel quel  ...          0.0        non
+
+[1 rows x 5 columns]
+             décision            choix  ... effet mesuré  &gt; barre ?
+0   un trou aléatoire   gardé tel quel  ...         0.00        non
+1  un trou structurel  fuite — écartée  ...         0.72        oui
+
+[2 rows x 5 columns]
+                décision            choix  ... effet mesuré  &gt; barre ?
+0      un trou aléatoire   gardé tel quel  ...         0.00        non
+1     un trou structurel  fuite — écartée  ...         0.72        oui
+2  des colonnes inutiles         écartées  ...         0.01        non
+
+[3 rows x 5 columns]
+                décision  ... &gt; barre ?
+0      un trou aléatoire  ...       non
+1     un trou structurel  ...       oui
+2  des colonnes inutiles  ...       non
+3  un code non documenté  ...       non
+
+[4 rows x 5 columns]
+                décision  ... &gt; barre ?
+0      un trou aléatoire  ...       non
+1     un trou structurel  ...       oui
+2  des colonnes inutiles  ...       non
+3  un code non documenté  ...       non
+4  une valeur impossible  ...       non
+
+[5 rows x 5 columns]
+                décision  ... &gt; barre ?
+0      un trou aléatoire  ...       non
+1     un trou structurel  ...       oui
+2  des colonnes inutiles  ...       non
+3  un code non documenté  ...       non
+4  une valeur impossible  ...       non
+5  des lignes dupliquées  ...       non
+
+[6 rows x 5 columns]
+</pre>
+<blockquote>
+<p><strong>Question →</strong> <code>Devoir_maison_2.ipynb</code>, <strong>question 7 (carnet J3) (2/2)</strong> — le journal de nettoyage, tel que vous le rendez.</p>
+</blockquote>
+<pre><code># le pipeline : de la table brute à la prédiction, en un seul endroit
+# Même contrat que `predict` : une table brute entre, un 0/1 par ligne sort.
+def nettoyer(brut):
+    &quot;&quot;&quot;Les décisions apprises sur la table d’apprentissage, appliquées à une table brute :
+       colonnes inutiles écartées, colonnes trop fines écartées, et les catégories de
+       l’apprentissage — jamais recalculées sur la table qu’on reçoit.&quot;&quot;&quot;
+    d = matrice(brut)[0]
+    d = d.drop(columns=[c for c in inutiles if c in d.columns])
+    d = d[[c for c in X.columns if c in d.columns]]
+    for c in CAT:
+        if c not in d.columns:
+            continue
+        d[c] = d[c].astype(&quot;category&quot;).cat.set_categories(X[c].cat.categories)
+    return d
+
+def pipeline(brut):
+    &quot;&quot;&quot;Reçoit une table brute et rend un tableau de 0/1 — la chaîne complète.&quot;&quot;&quot;
+    return modele_final.predict(nettoyer(brut)).astype(int)
+
+X_propre = nettoyer(train)
+modele_final = HistGradientBoostingClassifier(random_state=0).fit(X_propre, y)
+print(&quot;prédictions sur 500 lignes brutes :&quot;, pipeline(test.head(500)).shape)
+print(f&quot;la table préparée : {X_propre.shape[1]} colonnes (les {len(inutiles)} inutiles sont parties)&quot;)
+
+soumission = pd.DataFrame({ID: test[ID], CIBLE: pipeline(test)})
+soumission.to_csv(&quot;submission.csv&quot;, index=False)
+print(&quot;le fichier écrit : submission.csv \n&quot;)
+print(&quot;dimensions :&quot;, soumission.shape, &quot;(lignes, colonnes)&quot;)
+</code></pre>
+<pre class='out'>prédictions sur 500 lignes brutes : (500,)
+la table préparée : 21 colonnes (les 5 inutiles sont parties)
+le fichier écrit : submission.csv 
+
+dimensions : (63721, 2) (lignes, colonnes)
+</pre>
+<blockquote>
+<p><strong>Question →</strong> <code>Devoir_maison_2.ipynb</code>, <strong>question 8 (carnet J3)</strong> — le pipeline, et sa solidité.</p>
+</blockquote>
+<h3>Et une chose qu’on ne traite pas encore : le temps</h3>
+<p>Nos deux tableaux ne sont pas tirés au hasard dans une population. Le fichier est un
+<strong>historique</strong> : le test vient après l’entraînement dans le temps. Personne ne nous l’a dit. Il
+faut le voir dans les dates, et le mesurer : c’est ce que fait la cellule ci-dessous, y compris là
+où le découpage n’est pas parfait.</p>
+<p>Pourquoi ça compte : un découpage <strong>au hasard</strong> sur un historique laisse le futur entrer dans
+l’apprentissage. Le score monte, et il ne voudra rien dire. On y revient à la séance 5 —
+« validation croisée et validation temporelle » : c’est là qu’on apprendra à découper sans se
+mentir.</p>
+<p>Ce que cette section <strong>ne tranche pas</strong> : comment découper sans se mentir. Le découpage temporel
+s’apprend, il ne se devine pas.</p>
+<pre><code># la preuve, sans modèle : où s&#x27;arrête l&#x27;historique, où commence le test ?
+historique = pd.to_datetime(train[&quot;date_rdv&quot;])
+a_venir = pd.to_datetime(test[&quot;date_rdv&quot;])
+
+print(&quot;la période de l&#x27;historique \n&quot;)
+print(&quot;  train : du&quot;, historique.min().date(), &quot;au&quot;, historique.max().date())
+print(&quot;  test  : du&quot;, a_venir.min().date(), &quot;au&quot;, a_venir.max().date())
+
+# le découpage est chronologique — mais jusqu&#x27;où, exactement ?
+borne = historique.max()
+dedans = a_venir &lt;= borne
+apres = a_venir[~dedans]
+print(f&quot;\n→ {100 * (~dedans).mean():.2f} % des lignes de test viennent après l&#x27;historique :&quot;,
+      f&quot;du {apres.min().date()} au {apres.max().date()}&quot;)
+print(f&quot;  {int(dedans.sum())} ligne(s) de test portent une date antérieure à la borne.&quot;)
+print()
+print(&quot;Ces quelques lignes ne sont pas un détail à balayer : un découpage chronologique se vérifie,&quot;)
+print(&quot;il ne se suppose pas. Elles ne changent rien à la leçon — un découpage au hasard, lui,&quot;)
+print(&quot;mélangerait les deux périodes entièrement, et le score ne voudrait plus rien dire — mais&quot;)
+print(&quot;elles disent exactement où le découpage est imparfait, et c&#x27;est ce qu&#x27;on attend d&#x27;un contrôle.&quot;)
+</code></pre>
+<pre class='out'>la période de l&#x27;historique 
+
+  train : du 2023-01-02 au 2025-11-18
+  test  : du 2023-01-04 au 2026-12-30
+
+→ 99.50 % des lignes de test viennent après l&#x27;historique : du 2025-12-31 au 2026-12-30
+  317 ligne(s) de test portent une date antérieure à la borne.
+
+Ces quelques lignes ne sont pas un détail à balayer : un découpage chronologique se vérifie,
+il ne se suppose pas. Elles ne changent rien à la leçon — un découpage au hasard, lui,
+mélangerait les deux périodes entièrement, et le score ne voudrait plus rien dire — mais
+elles disent exactement où le découpage est imparfait, et c&#x27;est ce qu&#x27;on attend d&#x27;un contrôle.
+</pre>
+<h3>Ce qu’on retient</h3>
+<ul>
+<li><strong>Un score se lit contre un concurrent nommé</strong> : la réponse constante d’abord, la règle métier
+  en place ensuite. Un écart se juge contre la <strong>barre de bruit</strong>, pas à l’œil.</li>
+<li><strong>Le public est un petit échantillon</strong> : sur 1 000 lignes, l’erreur-type d’une exactitude vaut
+  plus d’un point. Le classement qu’il donne ne se retrouve pas sur des lignes que personne n’a
+  regardées.</li>
+<li><strong>Le tableau à quatre colonnes</strong> (modèle · validation · public · écart) est ce qui rend l’écart
+  lisible. Une colonne vide dit qu’un modèle n’a pas été soumis : ce n’est pas un oubli.</li>
+<li><strong>Un plafond existe</strong>, et il n’est pas dans le modèle : trois familles très différentes donnent
+  ici presque le même chiffre. On le mesure avant de chercher à l’atteindre.</li>
+<li>Un trou n’est pas toujours un trou. Aléatoire, il ne vaut rien. Structuré, il porte de
+  l’information — donc on mesure avant d’imputer.</li>
+<li>Le nettoyage change rarement le score. Il change ce qu’on peut défendre, et ce qui survit quand
+  les données changent. <strong>Le journal de nettoyage</strong> est ce qu’on rend.</li>
+<li><strong>Les deux tableaux ne sont pas tirés au hasard dans une population</strong> : le fichier est un
+  historique, et le test vient après. Un découpage au hasard y laisserait entrer le futur.</li>
+</ul>
+<p><strong>Ce qu’on laisse ouvert :</strong> le test <strong>apparié</strong> entre deux modèles jugés sur le même découpage.
+La <strong>calibration</strong> des probabilités annoncées. Et le <strong>découpage temporel</strong>, qu’on ne sait pas
+encore écrire sans se mentir.</p>
+</body></html>
