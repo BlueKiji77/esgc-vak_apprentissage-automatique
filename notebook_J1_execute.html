@@ -1,0 +1,1505 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8">
+<title>notebook_J1 — exécuté</title>
+<style>
+ body{max-width:52rem;margin:2rem auto;padding:0 1rem;line-height:1.55;
+       font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#1b1b1b}
+ h1,h2,h3,h4{line-height:1.25}
+ table{border-collapse:collapse;margin:1rem 0;font-size:.92em}
+ td,th{border:1px solid #ccc;padding:.25rem .5rem;text-align:left}
+ th{background:#f2f2f2}
+ pre{background:#f6f8fa;padding:.7rem .9rem;overflow-x:auto;border-radius:4px;font-size:.88em}
+ pre.out{background:#fff;border-left:3px solid #4a7c9b}
+ code{font-family:ui-monospace,Consolas,monospace}
+ blockquote{margin:1rem 0;padding:.4rem 1rem;border-left:3px solid #b5651d;background:#fdf7f2}
+ .note{background:#eef4f9;border:1px solid #c8d8e4;padding:.7rem 1rem;border-radius:4px}
+</style></head><body>
+<h1>notebook_J1</h1>
+<p class="note">Copie <strong>exécutée</strong> du carnet, pour la relecture : les sorties sont celles
+d'une exécution complète sur les données du cours. Le carnet à importer dans Kaggle reste
+<code>notebook_J1.ipynb</code>, qui part sans sorties. Si un chiffre diffère, c'est cette copie qui a raison :
+elle a tourné.</p>
+<h1>J1 — Du fichier brut à la soumission</h1>
+<p><strong>Séance 1.</strong> Une table arrive, et on ne sait rien d'elle. À la fin de la séance, on saura la
+lire, la décrire par des chiffres, en écarter ce qui n'a pas sa place, entraîner un modèle
+dessus, et déposer une prédiction classée.</p>
+<p>Ce carnet sert aussi de <strong>support de cours</strong> : il est écrit pour être relu seul, hors séance.
+Chaque section s'ouvre sur <strong>ce qu'on cherche et pourquoi</strong>, montre le code qui le fait, puis
+vous laisse la main.</p>
+<blockquote>
+<p><strong>La règle de la séance :</strong> un score sans référence ne veut rien dire, et un constat sans
+chiffre n'en est pas un.</p>
+</blockquote>
+<p><strong>Ce que le devoir 1 vous demandera :</strong> une soumission valide · l'interface <code>predict(df)</code> · le tableau d'essais
+(hypothèse, changement, attendu, mesuré) · <strong>cinq constats chiffrés</strong>.</p>
+<p><strong>Et ce carnet n'est que la moitié.</strong> La séance 2 (<code>notebook_J2.ipynb</code>) ouvre la table que
+celle-ci a préparée, et s'occupe de ce qu'elle cache : les colonnes qui ne seront pas là le
+jour où le modèle servira. Les <strong>trois hypothèses de features</strong> que le devoir 1 vous demandera s'écrivent là.</p>
+<pre><code># les outils
+# Aucun import en bloc au début : chaque module entre dans le carnet au moment de son premier
+# usage. On voit ainsi à quoi il sert, au lieu de le deviner dans une liste.
+
+# `display` : un tableau s&#x27;affiche proprement dans un carnet, et reste lisible ailleurs.
+# C&#x27;est par `display` qu&#x27;on montre TOUTES les tables de ce carnet — jamais un print de texte.
+try:
+    from IPython.display import display
+except ImportError:
+    def display(x):
+        print(x)
+</code></pre>
+
+<pre><code>import os
+import pandas as pd
+# où sont les fichiers — on CHERCHE `train.csv`, on ne suppose pas un chemin
+# (Kaggle a déjà déplacé ses points de montage : un chemin recopié se périme, une recherche non)
+def _trouver_dossier(racines):
+    &quot;&quot;&quot;Première racine contenant train.csv — en surface, puis en profondeur.&quot;&quot;&quot;
+    for racine in racines:
+        if not os.path.isdir(racine):
+            continue
+        if os.path.exists(os.path.join(racine, &quot;train.csv&quot;)):
+            return racine
+        for chemin, _, fichiers in os.walk(racine):
+            if &quot;train.csv&quot; in fichiers:
+                return chemin
+    return None
+
+DOSSIER = _trouver_dossier([&quot;/kaggle/input&quot;, &quot;sortie&quot;])
+assert DOSSIER, &quot;train.csv introuvable : les données de la compétition sont-elles montées ?&quot;
+
+print(&quot;le dossier des données trouvé :&quot;, DOSSIER)
+</code></pre>
+<pre class='out'>le dossier des données trouvé : sortie
+</pre>
+<h2>1. Lire la table</h2>
+<p>Tout commence par deux fichiers. L'<strong>historique</strong> contient les rendez-vous passés, avec la
+réponse : le patient s'est présenté, ou non. La réponse s'appelle <code>patient_absent</code> : elle vaut 1
+quand le patient ne vient pas — on dit absent dans tout le cours pour cette classe, et positif
+pour une ligne qui la porte. Le test contient les rendez-vous à venir, <strong>sans</strong>
+la réponse — et c'est elle qu'on devra produire.</p>
+<p>La première chose qu'on fait, avant tout le reste, c'est <strong>regarder</strong>. Combien de lignes, combien de
+colonnes, quels types, et à quoi ressemble <strong>une</strong> ligne. Ce n'est pas une formalité : c'est le
+moment où l'on découvre qu'une colonne de nombres est rangée en texte, qu'un identifiant a été
+gardé, qu'une même date s'écrit de plusieurs façons. Rien de tout cela ne lève d'erreur — et tout
+cela peut rendre un résultat faux.</p>
+<p>En poste, cette étape évite la faute la plus coûteuse du débutant : choisir un modèle avant de
+savoir ce que contient la table. Un texte lu comme un nombre, une colonne identifiant, un trou
+systématique : chacun suffit, à lui seul, à produire un modèle qui se trompe sans le dire.</p>
+<blockquote>
+<p><strong>Le réflexe, pour tout le semestre :</strong> on ne chiffre rien avant d'avoir regardé.</p>
+</blockquote>
+<pre><code>train = pd.read_csv(os.path.join(DOSSIER, &quot;train.csv&quot;), low_memory=False)
+test = pd.read_csv(os.path.join(DOSSIER, &quot;test.csv&quot;), low_memory=False)
+
+ID, CIBLE = &quot;ligne_id&quot;, &quot;patient_absent&quot;
+
+print(&quot;les deux tableaux \n&quot;)
+print(&quot;train :&quot;, train.shape, &quot;(lignes, colonnes)&quot;)
+print(&quot;test  :&quot;, test.shape, &quot;(lignes, colonnes)&quot;)
+
+print(&quot;les cinq premières lignes \n&quot;)
+display(train.head())
+</code></pre>
+<pre class='out'>les deux tableaux 
+
+train : (149894, 39) (lignes, colonnes)
+test  : (63721, 38) (lignes, colonnes)
+les cinq premières lignes 
+
+    dossier_id  ligne_id  ... taux_absence_passe patient_absent
+0  DOS-0127912    127913  ...                0.0              1
+1  DOS-0002883      2884  ...                0.0              0
+2  DOS-0098561     98562  ...                0.0              0
+3  DOS-0133156    133157  ...                0.0              0
+4  DOS-0055744     55745  ...                0.0              0
+
+[5 rows x 39 columns]
+</pre>
+<pre><code># la fiche d&#x27;identité de chaque colonne : son type, et combien de valeurs sont renseignées
+train.info()
+</code></pre>
+<pre class='out'>&lt;class &#x27;pandas.core.frame.DataFrame&#x27;&gt;
+RangeIndex: 149894 entries, 0 to 149893
+Data columns (total 39 columns):
+ #   Column                 Non-Null Count   Dtype  
+---  ------                 --------------   -----  
+ 0   dossier_id             149894 non-null  object 
+ 1   ligne_id               149894 non-null  int64  
+ 2   patient_id             149894 non-null  object 
+ 3   clinique               149894 non-null  object 
+ 4   district               149894 non-null  object 
+ 5   age                    149894 non-null  int64  
+ 6   sexe                   149894 non-null  object 
+ 7   quartier               149894 non-null  object 
+ 8   assurance              149894 non-null  object 
+ 9   hypertension           149894 non-null  int64  
+ 10  diabete                149894 non-null  int64  
+ 11  alcoolisme             149894 non-null  int64  
+ 12  handicap               149894 non-null  int64  
+ 13  duree_consultation     149894 non-null  int64  
+ 14  constantes_relevees    86364 non-null   object 
+ 15  motif_absence          27357 non-null   object 
+ 16  date_naissance         149848 non-null  object 
+ 17  taille_cm              149894 non-null  object 
+ 18  code_assurance         149894 non-null  int64  
+ 19  date_prise             149894 non-null  object 
+ 20  date_rdv               149894 non-null  object 
+ 21  delai_jours            149894 non-null  int64  
+ 22  rappel_envoye          50566 non-null   object 
+ 23  charge_chronique       149894 non-null  int64  
+ 24  encours_1_mois         149894 non-null  float64
+ 25  encours_3_mois         149894 non-null  float64
+ 26  encours_6_mois         149894 non-null  float64
+ 27  solde_credit           141653 non-null  float64
+ 28  montant_acte           149894 non-null  float64
+ 29  indice_risque_externe  149894 non-null  float64
+ 30  indice_meteo_jour      149894 non-null  int64  
+ 31  zone_clinique          149894 non-null  object 
+ 32  tournee_jour           149894 non-null  object 
+ 33  cout_acte              149894 non-null  float64
+ 34  age_mois               149894 non-null  int64  
+ 35  score_territorial      149894 non-null  float64
+ 36  canal_prise            149894 non-null  object 
+ 37  taux_absence_passe     149894 non-null  float64
+ 38  patient_absent         149894 non-null  int64  
+dtypes: float64(9), int64(13), object(17)
+memory usage: 44.6+ MB
+</pre>
+<pre><code># une ligne au hasard, mise à la verticale : plus lisible qu&#x27;à l&#x27;horizontale
+print(&quot;un rendez-vous au hasard \n&quot;)
+display(train.sample(1, random_state=0).T)   # random_state=0 : le même tirage à chaque exécution
+</code></pre>
+<pre class='out'>un rendez-vous au hasard 
+
+                                   6398
+dossier_id                  DOS-0143047
+ligne_id                         143048
+patient_id                      P017472
+clinique                            C06
+district                             D3
+age                                  67
+sexe                                  M
+quartier                            Q06
+assurance                        aucune
+hypertension                          0
+diabete                               0
+alcoolisme                            0
+handicap                              0
+duree_consultation                   23
+constantes_relevees             partiel
+motif_absence                       NaN
+date_naissance               02/01/1956
+taille_cm                         174,4
+code_assurance                        2
+date_prise             2025-08-13T11:00
+date_rdv                     2025-08-18
+delai_jours                           5
+rappel_envoye                    envoyé
+charge_chronique                      0
+encours_1_mois                    26.58
+encours_3_mois                    24.28
+encours_6_mois                    19.77
+solde_credit                    5673.78
+montant_acte                     575.34
+indice_risque_externe             57.74
+indice_meteo_jour                    29
+zone_clinique                   urbaine
+tournee_jour                     T00367
+cout_acte                          42.1
+age_mois                            804
+score_territorial                0.0297
+canal_prise                    en ligne
+taux_absence_passe                  0.0
+patient_absent                        0
+</pre>
+<h2>2. Explorer la table</h2>
+<p>Un modèle ne vaut pas mieux que ses données. Avant de toucher au modèle, on interroge la table : ses
+types, ses trous, ses valeurs distinctes, ses doublons, sa cible, et les liens entre ses colonnes.</p>
+<p>Cette partie est longue, et elle le mérite. Dans un projet réel, <strong>c'est ici que passe l'essentiel
+du temps</strong> — pas dans le choix du modèle, qui se décide en quelques minutes une fois les données
+comprises, ni dans ses réglages, qui rapportent peu. Un praticien expérimenté passe des heures sur
+une table et quelques minutes sur le classifieur ; un débutant fait l'inverse, puis s'étonne du
+résultat.</p>
+<p>On va donc dérouler six questions, toujours dans le même ordre : <strong>quels types ? combien de trous ?
+combien de valeurs distinctes ? des doublons ? comment se comporte la cible ? les colonnes se
+répètent-elles ?</strong></p>
+<p><strong>Le réflexe vaut pour les six : un constat sans chiffre n'est pas un constat.</strong> « Il y a des valeurs
+manquantes » ne dit rien à personne ; « 5 % de trous sur cette colonne, et le trou est corrélé à la
+cible » dit quoi faire. C'est cette lecture qui produit les constats que le devoir 1 vous demandera — et c'est elle
+qui décide, ensuite, de ce qui entrera dans la table de travail.</p>
+<h3>2.1 Les types — ce que pandas croit, et ce que la colonne contient</h3>
+<p>Un type ne se suppose pas : il se <strong>vérifie</strong>. Une colonne qui affiche des nombres peut être rangée
+en <strong>texte</strong> — et le dégât est silencieux, à deux étages.</p>
+<p>D'abord, la colonne perd sa <strong>grandeur</strong>. Une colonne de texte est lue comme une catégorie :
+« 37 » et « 38 » deviennent deux étiquettes sans ordre, comme « rouge » et « bleu ». Or « 37 » et
+« 38 » sont proches, et « 37 » et « 400 » ne le sont pas : cette <strong>proximité est une information</strong>,
+et elle disparaît. Le modèle ne pourra plus s'appuyer sur la valeur, seulement sur l'étiquette.</p>
+<p>Ensuite, si la colonne a <strong>trop</strong> de valeurs distinctes, elle est purement et simplement écartée —
+l'information disparaît sans un message, et personne ne s'en aperçoit.</p>
+<p>C'est pourquoi on liste ici toutes les colonnes <strong>non numériques</strong>, avec un exemple de valeur :
+c'est le regard qui suffit à repérer le problème.</p>
+<pre><code>types = pd.DataFrame({
+    &quot;type pandas&quot;: [str(train[c].dtype) for c in train.columns],
+    &quot;non numérique&quot;: [not pd.api.types.is_numeric_dtype(train[c]) for c in train.columns],
+    &quot;exemple&quot;: [train[c].dropna().iloc[0] if train[c].notna().any() else &quot;&quot; for c in train.columns],
+}, index=train.columns)
+
+print(&quot;les colonnes NON numériques, et un exemple de valeur \n&quot;)
+display(types[types[&quot;non numérique&quot;]])
+</code></pre>
+<pre class='out'>les colonnes NON numériques, et un exemple de valeur 
+
+                    type pandas  non numérique           exemple
+dossier_id               object           True       DOS-0127912
+patient_id               object           True           P070425
+clinique                 object           True               C02
+district                 object           True                D3
+sexe                     object           True                 F
+quartier                 object           True               Q04
+assurance                object           True            privée
+constantes_relevees      object           True           complet
+motif_absence            object           True       non précisé
+date_naissance           object           True        01/01/1970
+taille_cm                object           True             161,9
+date_prise               object           True  2023-07-02T11:00
+date_rdv                 object           True        2023-07-24
+rappel_envoye            object           True            envoyé
+zone_clinique            object           True           urbaine
+tournee_jour             object           True            T00000
+canal_prise              object           True           guichet
+</pre>
+<p><strong>Deux mots qu'on va employer tout le temps, et qu'il ne faut pas confondre.</strong> Une <strong>correction</strong> :
+le défaut est certain, on sait exactement ce qu'on fait, il n'y a rien à comparer — donc rien à
+mesurer. Un <strong>arbitrage</strong> : il faudrait <strong>comparer deux modèles</strong> pour trancher (imputer ou non,
+garder cette colonne ou non). Il se mesure, et il coûte du temps. <strong>Toute décision de ce carnet porte
+l'une des deux étiquettes</strong>, et c'est elle qui dit si on doit un chiffre — ou pas.</p>
+<p><strong>Ce que ça nous dit :</strong> une seule colonne est rangée en texte, et c'est justement une mesure. Les
+autres colonnes non numériques sont des catégories ou des dates — c'est leur forme naturelle.
+Ce qu'on en fait : la colonne de taille se convertit (section 3.1) — c'est une correction —
+mais elle <strong>n'entre pas</strong> dans la table de travail : décider de la garder est un arbitrage, et il
+se mesure. Les catégories restent telles quelles ; les dates brutes, sous cette forme, ne sont pas
+exploitables.</p>
+<h4>Et une valeur se vérifie aussi</h4>
+<p>Un type juste ne garantit pas une valeur juste : un âge de <strong>−1</strong> est bien un nombre, et
+pandas n'y verra rien à redire. On regarde donc les bornes des colonnes numériques —
+le minimum et le maximum, colonne par colonne. C'est le même geste que pour les types,
+appliqué aux valeurs : <strong>on ne suppose pas, on vérifie.</strong></p>
+<pre><code># une VALEUR se vérifie aussi : les bornes des colonnes numériques
+numeriques = [c for c in train.columns if pd.api.types.is_numeric_dtype(train[c])]
+bornes_num = pd.DataFrame({
+    &quot;minimum&quot;: [train[c].min() for c in numeriques],
+    &quot;maximum&quot;: [train[c].max() for c in numeriques],
+}, index=numeriques)
+
+print(&quot;les bornes des colonnes numériques \n&quot;)
+display(bornes_num)
+
+# combien descendent sous zéro, et lesquelles ?
+sous_zero = [c for c in numeriques if train[c].min() &lt; 0]
+print(f&quot;colonnes qui descendent sous zéro ({len(sous_zero)}) :&quot;)
+for c in sous_zero:
+    print(f&quot;  {c:&lt;24} minimum : {train[c].min():&gt;12.2f}&quot;)
+est_ce_possible = pd.DataFrame({
+    &quot;minimum observé&quot;: [train[c].min() for c in sous_zero],
+}, index=sous_zero)
+print()
+print(&quot;la question n&#x27;est pas « est-ce loin de zéro ? » mais « est-ce POSSIBLE ? » \n&quot;)
+display(est_ce_possible)
+</code></pre>
+<pre class='out'>les bornes des colonnes numériques 
+
+                          minimum      maximum
+ligne_id                   1.0000  220000.0000
+age                       -1.0000      97.0000
+hypertension               0.0000       1.0000
+diabete                    0.0000       1.0000
+alcoolisme                 0.0000       1.0000
+handicap                   0.0000       1.0000
+duree_consultation       -15.0000      53.0000
+code_assurance             1.0000       9.0000
+delai_jours                0.0000      40.0000
+charge_chronique           0.0000       4.0000
+encours_1_mois             2.5700    3385.9500
+encours_3_mois             2.6500    3395.1300
+encours_6_mois             2.2600    3440.7000
+solde_credit          -19500.2500   12805.8600
+montant_acte               5.9600   10249.9700
+indice_risque_externe    -14.9300     121.0700
+indice_meteo_jour        -33.0000     136.0000
+cout_acte                  0.4000     749.3000
+age_mois                 -12.0000    1164.0000
+score_territorial         -4.5336       4.1072
+taux_absence_passe         0.0000       1.0000
+patient_absent             0.0000       1.0000
+colonnes qui descendent sous zéro (7) :
+  age                      minimum :        -1.00
+  duree_consultation       minimum :       -15.00
+  solde_credit             minimum :    -19500.25
+  indice_risque_externe    minimum :       -14.93
+  indice_meteo_jour        minimum :       -33.00
+  age_mois                 minimum :       -12.00
+  score_territorial        minimum :        -4.53
+
+la question n&#x27;est pas « est-ce loin de zéro ? » mais « est-ce POSSIBLE ? » 
+
+                       minimum observé
+age                            -1.0000
+duree_consultation            -15.0000
+solde_credit               -19500.2500
+indice_risque_externe         -14.9300
+indice_meteo_jour             -33.0000
+age_mois                      -12.0000
+score_territorial              -4.5336
+</pre>
+<p><strong>Ce que ça nous dit :</strong> sept colonnes descendent sous zéro — et la bonne question n'est pas
+« laquelle est bizarre ? » mais « est-ce possible ? ». Pour six d'entre elles, oui : un solde
+de crédit négatif est un compte débiteur, un <strong>score territorial</strong> — un indice calculé par quartier et exprimé en <strong>écart à la moyenne de la
+ville</strong> : « −0,8 » veut dire « un peu sous la moyenne », ce qui est banal —, une
+température de janvier est négative. Pour <code>age</code>, non : un âge de −1 n'existe pas. Et
+<code>age_mois</code>, qui vaut −12, n'est jamais arrivé — c'est le même âge exprimé en mois.
+Ce qu'on en fait : on a maintenant deux enregistrements cassés à traiter, et une liste de six
+négatifs qu'il ne faut <strong>pas</strong> toucher. C'est la section 3 qui tranche — et elle dit pourquoi.</p>
+<h3>2.2 Les trous, colonne par colonne</h3>
+<p>Un trou n'est pas « une valeur manquante » : c'est un <strong>taux</strong>, et il se lit colonne par colonne.
+5 % de trous sur une colonne de solde et 99 % sur une colonne de motif ne sont pas le même problème
+— et ne se traitent pas de la même façon.</p>
+<p>Avant de toucher à un trou, deux choses : <strong>combien</strong> il y en a, et <strong>où</strong> ils sont. Un trou
+réparti au hasard ne dit rien de la ligne — il dit seulement qu'on n'a pas noté. Un trou qui suit
+une logique (toujours les mêmes cliniques, toujours les mêmes jours, toujours un type de patient)
+est une information en soi : le fait qu'une valeur manque peut être plus parlant que la valeur.</p>
+<p>Ce taux se calcule simplement, colonne par colonne :</p>
+<p>$$\text{taux de trous}(c) = \frac{#{\text{lignes où } c \text{ est manquante}}}{#{\text{lignes}}}$$</p>
+<p>Et une troisième chose, que peu de gens pensent à regarder : <strong>le trou, des deux côtés</strong>. Une
+colonne parfaitement renseignée dans l'historique peut être vide dans le test — c'est justement
+l'objet de la sous-section suivante.</p>
+<pre><code># le premier graphique : matplotlib entre ici
+import matplotlib.pyplot as plt
+taux = pd.DataFrame({
+    &quot;manquants (%)&quot;: (100 * train.isna().mean()).round(2),
+}, index=train.columns)
+taux = taux[taux[&quot;manquants (%)&quot;] &gt; 0].sort_values(&quot;manquants (%)&quot;, ascending=False)
+
+print(&quot;les colonnes qui ont des trous \n&quot;)
+display(taux)
+if len(taux):
+    fig, ax = plt.subplots(figsize=(7, max(2, 0.35 * len(taux))))
+    ax.barh(taux.index[::-1], taux[&quot;manquants (%)&quot;][::-1], color=&quot;#b5651d&quot;)
+    ax.set_xlabel(&quot;part de la colonne qui est vide (%)&quot;)
+    plt.tight_layout()
+    plt.show()
+</code></pre>
+<pre class='out'>les colonnes qui ont des trous 
+
+                     manquants (%)
+motif_absence                81.75
+rappel_envoye                66.27
+constantes_relevees          42.38
+solde_credit                  5.50
+date_naissance                0.03
+&lt;cellule 8&gt;:15: UserWarning: FigureCanvasAgg is non-interactive, and thus cannot be shown
+</pre>
+<h4>Désigner une case : <code>.loc</code> et <code>.iloc</code></h4>
+<p>Deux façons de désigner une case d'un tableau, et la différence compte — elles nous serviront
+à la section 3 :</p>
+<ul>
+<li><strong><code>.loc</code> désigne par étiquette</strong> — le nom de la ligne, le nom de la colonne. C'est la forme
+  qu'on emploie pour filtrer : <code>train.loc[train["age"] == -1, "age"]</code> se lit « les lignes où
+  l'âge vaut −1, colonne âge ».</li>
+<li><strong><code>.iloc</code> désigne par position</strong> — le numéro de la ligne et de la colonne, à partir de zéro,
+  comme un rang dans une liste. <code>train.iloc[0]</code> est la <strong>première</strong> ligne de la table, quel que
+  soit son nom.</li>
+</ul>
+<p><strong>Le réflexe, en une phrase : on lit par étiquette, on prend un rang par position.</strong> L'erreur
+classique vient de là : un <code>iloc</code> sur une table qu'on vient de filtrer ne désigne plus la même
+ligne qu'avant, alors qu'un <code>loc</code> continue de désigner la bonne.</p>
+<p><strong>Ce que ça nous dit :</strong> les trous ne sont pas partout — cinq colonnes en portent, trente-quatre
+n'en portent aucun. Et le chiffre le plus utile n'est pas le taux lui-même, mais <strong>sa
+comparaison</strong> : 81 % de trous sur <code>motif_absence</code> et 5,5 % sur <code>solde_credit</code> ne sont pas le même
+problème, et ne se traitent pas de la même façon.
+Ce qu'on en fait : on ne comble rien ici. Combler un trou suppose de comparer deux modèles —
+c'est un arbitrage, et <strong>la séance 3 le mesure</strong> (elle essaie quatre comblements du même trou, sur
+<code>solde_credit</code>).</p>
+<h4>Le même trou, vu des deux tableaux</h4>
+<p>C'est <strong>ici</strong> qu'on découvre les colonnes qui ne survivront pas à la mise en service : celles qui
+changent de nature entre l'historique et le test. On ne le suppose pas, on le mesure.</p>
+<pre><code>comparaison = pd.DataFrame({
+    &quot;vide en apprentissage (%)&quot;: (100 * train.isna().mean()).round(1),
+    &quot;vide en test (%)&quot;: (100 * test.isna().mean()).round(1),
+}, index=train.columns)
+comparaison[&quot;écart (pts)&quot;] = (comparaison[&quot;vide en test (%)&quot;]
+                              - comparaison[&quot;vide en apprentissage (%)&quot;]).round(1)
+comparaison = comparaison[comparaison[&quot;écart (pts)&quot;].abs() &gt; 20]
+
+print(&quot;les colonnes qui ne se comportent pas pareil des deux côtés \n&quot;)
+display(comparaison)
+</code></pre>
+<pre class='out'>les colonnes qui ne se comportent pas pareil des deux côtés 
+
+             vide en apprentissage (%)  vide en test (%)  écart (pts)
+canal_prise                        0.0              99.5         99.5
+</pre>
+<p><strong>Ce que ça nous dit :</strong> un trou qui n'existe que d'un côté n'est pas un trou — c'est un
+changement de collecte. Ce tableau est le contrôle le plus utile de toute l'exploration : il
+sépare ce qui manque par hasard de ce qui a disparu exprès.
+Ce qu'on en fait : on note l'écart. C'est la <strong>quatrième famille</strong> de colonnes à écarter, et
+c'est la séance 2 qui la traite (section 4).</p>
+<h3>2.3 La cardinalité — combien de valeurs distinctes</h3>
+<p>Le nombre de valeurs distinctes dit trois choses d'un coup, et c'est le comptage le plus rentable
+de l'exploration : il tient en une ligne, et il révèle en trente secondes ce qu'on ne verrait
+qu'après des heures de lecture.</p>
+<ul>
+<li><strong>une seule valeur</strong> — la colonne est constante : elle n'apprendra rien à aucun modèle ;</li>
+<li>une valeur par ligne — c'est un identifiant déguisé : il désigne une ligne, il ne la décrit
+  pas ;</li>
+<li><strong>des centaines de valeurs</strong> — la colonne est trop fine pour être prise telle quelle : il
+  faudra la regrouper, ou la laisser de côté.</li>
+</ul>
+<p><strong>Ce comptage est le premier réflexe</strong> : il sépare d'un coup les colonnes mortes et les
+identifiants de celles qui portent vraiment une information.</p>
+<pre><code>distinctes = pd.DataFrame({
+    &quot;valeurs distinctes&quot;: [train[c].nunique() for c in train.columns],
+    &quot;manquants (%)&quot;: (100 * train.isna().mean()).round(1),
+}, index=train.columns).sort_values(&quot;valeurs distinctes&quot;, ascending=False)
+
+print(&quot;valeurs distinctes par colonne \n&quot;)
+display(distinctes)
+</code></pre>
+<pre class='out'>valeurs distinctes par colonne 
+
+                       valeurs distinctes  manquants (%)
+dossier_id                         149894            0.0
+ligne_id                           149894            0.0
+solde_credit                       119178            5.5
+patient_id                          99880            0.0
+montant_acte                        51002            0.0
+score_territorial                   42052            0.0
+encours_6_mois                      37375            0.0
+encours_3_mois                      37317            0.0
+encours_1_mois                      37114            0.0
+date_prise                          10518            0.0
+tournee_jour                         9000            0.0
+indice_risque_externe                8655            0.0
+cout_acte                            1642            0.0
+taux_absence_passe                   1030            0.0
+date_rdv                              902            0.0
+taille_cm                             675            0.0
+indice_meteo_jour                     150            0.0
+age_mois                               99            0.0
+age                                    99            0.0
+date_naissance                         98            0.0
+clinique                               80            0.0
+quartier                               80            0.0
+duree_consultation                     62            0.0
+code_assurance                          8            0.0
+delai_jours                             7            0.0
+district                                6            0.0
+charge_chronique                        5            0.0
+motif_absence                           4           81.7
+canal_prise                             4            0.0
+assurance                               4            0.0
+diabete                                 2            0.0
+sexe                                    2            0.0
+alcoolisme                              2            0.0
+hypertension                            2            0.0
+constantes_relevees                     2           42.4
+handicap                                2            0.0
+patient_absent                          2            0.0
+zone_clinique                           1            0.0
+rappel_envoye                           1           66.3
+</pre>
+<p><strong>Ce que ça nous dit :</strong> deux extrêmes se lisent d'un coup — une colonne à une seule valeur
+n'apprendra jamais rien, et une colonne à une valeur par ligne désigne une ligne au lieu de la
+décrire. Dans les deux cas, la colonne est morte pour le modèle.
+Ce qu'on en fait : les deux extrêmes sont <strong>repérés</strong> ici — pas encore retirés. Décider de
+retirer une colonne est un arbitrage : il se mesure, et c'est la séance 3 qui le fait. La colonne
+constante, <code>zone_clinique</code>, devient le premier constat chiffré de la section 2.7.</p>
+<h3>2.4 Les doublons</h3>
+<p>Un patient peut revenir : le même identifiant apparaît alors plusieurs fois — c'est normal, et
+c'est même une information. Une ligne recopiée <strong>à l'identique</strong>, elle, est un défaut de collecte :
+ce n'est pas deux cas proches, c'est le <strong>même</strong> enregistrement compté deux fois.</p>
+<p>Le comptage se lit en deux temps, et il ne se lit pas de la même façon selon le résultat ne se lit pas de la même façon selon le résultat : <strong>un
+comptage qui trouve quelque chose</strong> désigne des lignes à retirer ; <strong>un comptage qui ne trouve
+rien</strong> est un résultat lui aussi — il dit que le défaut n'est pas là, et il faut le noter comme
+tel.</p>
+<p>Les deux se comptent, et <strong>les deux chiffres ne racontent pas la même chose</strong> : combien de lignes
+sont en trop, et combien de patients sont concernés. Dix lignes dupliquées sur un seul patient et
+dix lignes dupliquées sur dix patients ne se traitent pas de la même façon.</p>
+<p><strong>Pourquoi ça compte :</strong> une ligne comptée deux fois pèse deux fois dans l'apprentissage — le
+modèle la voit comme deux exemples alors que ce n'en est qu'un. C'est un biais silencieux, et
+c'est pour cela qu'on le corrige avant tout modèle, pas après.</p>
+<pre><code>doublons = pd.DataFrame({
+    &quot;lignes dupliquées (toutes colonnes)&quot;: [int(train.duplicated().sum())],
+    &quot;identifiants de ligne dupliqués&quot;: [int(train[ID].duplicated().sum())],
+    &quot;patients distincts&quot;: [int(train[&quot;patient_id&quot;].nunique())],
+    &quot;rendez-vous par patient (max)&quot;: [int(train[&quot;patient_id&quot;].value_counts().max())],
+}, index=[&quot;comptes&quot;])
+
+print(&quot;les doublons, et la récurrence des patients \n&quot;)
+display(doublons.T)
+</code></pre>
+<pre class='out'>les doublons, et la récurrence des patients 
+
+                                     comptes
+lignes dupliquées (toutes colonnes)        0
+identifiants de ligne dupliqués            0
+patients distincts                     99880
+rendez-vous par patient (max)            161
+</pre>
+<p><strong>Ce que ça nous dit :</strong> le comptage donne zéro ligne strictement identique, et zéro
+identifiant de ligne dupliqué. Rien à corriger ici — et c'est un résultat, pas un échec : le
+défaut qu'on cherche n'est pas dans cette table, et on vient de le prouver au lieu de le
+supposer. Ce qui reste, et qui compte, c'est la récurrence des patients : 99 880 patients
+pour 149 894 rendez-vous, dont un qui revient 161 fois.
+Ce qu'on en fait : rien à retirer. Mais la récurrence des patients est une information de
+premier ordre — le même patient peut se retrouver des deux côtés d'un découpage, et on y
+reviendra à la <strong>séance 5</strong> (validation croisée et validation temporelle).</p>
+<h3>2.5 Regrouper : la cible, par groupe</h3>
+<p>Une cible déséquilibrée change tout — la métrique qu'on peut employer, le score d'un modèle qui
+répond toujours la même chose, et la lecture qu'on fait d'un résultat. On la regarde donc <strong>avant</strong>
+tout modèle : d'abord sa répartition, puis par groupe.
+Le geste s'appelle <code>groupby</code>, et il vaut la peine d'être connu : il découpe la table selon une
+colonne, calcule quelque chose dans chaque morceau, puis <strong>rassemble</strong> le résultat. C'est la
+façon la plus rapide de répondre à « cet indicateur, il vaut combien selon… ? » — par clinique, par
+mois, par segment, par canal. C'est un réflexe quotidien du métier, pas un détail de bibliothèque.</p>
+<p><strong>Et une règle à ne jamais oublier :</strong> un groupe de douze lignes ne dit rien. Sur un groupe trop
+petit, l'écart qu'on observe est du hasard, pas un signal — et c'est ainsi qu'on annonce une
+découverte qui n'existe pas. On ne compare que des groupes d'au moins <strong>quelques centaines de
+lignes</strong>, et on regarde l'effectif <strong>avant</strong> de conclure.</p>
+<pre><code>print(&quot;la distribution de la cible \n&quot;)
+repartition = pd.DataFrame({&quot;lignes&quot;: [len(train), int(train[CIBLE].sum())],
+                            &quot;part (%)&quot;: [100.0, round(100 * train[CIBLE].mean(), 2)]},
+                           index=[&quot;toutes&quot;, &quot;absents&quot;])
+display(repartition)
+
+reference = 100 * max(train[CIBLE].mean(), 1 - train[CIBLE].mean())
+print(f&quot;la référence (répondre toujours la classe majoritaire) : {reference:.2f} %&quot;)
+</code></pre>
+<pre class='out'>la distribution de la cible 
+
+         lignes  part (%)
+toutes   149894    100.00
+absents   27357     18.25
+la référence (répondre toujours la classe majoritaire) : 81.75 %
+</pre>
+<pre><code># premier groupby : un effectif et un taux, par modalité
+par_groupe = train.groupby(&quot;assurance&quot;, observed=True)[CIBLE].agg(
+    lignes=&quot;size&quot;, taux_absence=&quot;mean&quot;)
+par_groupe[&quot;taux_absence&quot;] = (100 * par_groupe[&quot;taux_absence&quot;]).round(2)
+par_groupe = par_groupe.sort_values(&quot;taux_absence&quot;, ascending=False)
+
+print(&quot;l&#x27;absence, par régime d&#x27;assurance \n&quot;)
+display(par_groupe)
+
+# le même tableau, en barres — le trait pointillé est la référence
+fig, ax = plt.subplots(figsize=(7, 3.5))
+ax.barh(par_groupe.index[::-1], par_groupe[&quot;taux_absence&quot;][::-1], color=&quot;#4a7c9b&quot;)
+ax.axvline(reference, color=&quot;#b5651d&quot;, linestyle=&quot;--&quot;, linewidth=1)
+ax.set_xlabel(&quot;taux d&#x27;absence (%)&quot;)
+ax.set_title(&quot;l&#x27;absence selon le régime — le trait pointillé est la référence&quot;)
+plt.tight_layout()
+plt.show()
+</code></pre>
+<pre class='out'>l&#x27;absence, par régime d&#x27;assurance 
+
+           lignes  taux_absence
+assurance                      
+privée      10634         18.90
+publique    65993         18.32
+aucune      42172         18.21
+mutuelle    31095         17.93
+&lt;cellule 13&gt;:17: UserWarning: FigureCanvasAgg is non-interactive, and thus cannot be shown
+</pre>
+<pre><code># deuxième groupby : sur une colonne FABRIQUÉE — le délai, découpé en tranches
+bornes_tranches = [-1, 0, 3, 7, 14, 30, 10_000]
+etiquettes = [&quot;0 j&quot;, &quot;1-3 j&quot;, &quot;4-7 j&quot;, &quot;8-14 j&quot;, &quot;15-30 j&quot;, &quot;&gt; 30 j&quot;]
+tranche = pd.cut(train[&quot;delai_jours&quot;], bins=bornes_tranches, labels=etiquettes)
+
+par_tranche = train.groupby(tranche, observed=True)[CIBLE].agg(
+    lignes=&quot;size&quot;, taux_absence=&quot;mean&quot;)
+par_tranche[&quot;taux_absence&quot;] = (100 * par_tranche[&quot;taux_absence&quot;]).round(2)
+
+print(&quot;l&#x27;absence, par tranche de délai \n&quot;)
+display(par_tranche)
+petits = list(par_tranche[par_tranche[&quot;lignes&quot;] &lt; 500].index)
+print(&quot;groupes trop petits pour qu&#x27;on en conclue quoi que ce soit :&quot;, petits)
+
+fig, ax = plt.subplots(figsize=(7, 3.5))
+ax.bar(par_tranche.index, par_tranche[&quot;taux_absence&quot;], color=&quot;#4a7c9b&quot;)
+ax.axhline(reference, color=&quot;#b5651d&quot;, linestyle=&quot;--&quot;, linewidth=1)
+ax.set_ylabel(&quot;taux d&#x27;absence (%)&quot;)
+ax.set_title(&quot;l&#x27;absence selon le délai — le trait pointillé est la référence&quot;)
+plt.tight_layout()
+plt.show()
+</code></pre>
+<pre class='out'>l&#x27;absence, par tranche de délai 
+
+             lignes  taux_absence
+delai_jours                      
+0 j           59680          6.12
+1-3 j         35354         22.52
+4-7 j         19412         25.05
+8-14 j        14936         30.10
+15-30 j       12584         31.04
+&gt; 30 j         7928         31.26
+groupes trop petits pour qu&#x27;on en conclue quoi que ce soit : []
+&lt;cellule 14&gt;:21: UserWarning: FigureCanvasAgg is non-interactive, and thus cannot be shown
+</pre>
+<p><strong>Ce que ça nous dit :</strong> trois choses. La cible n'est pas équilibrée — 18 % d'absents, donc
+répondre « présent » vaut déjà la référence de la section 4. Le taux d'absence varie selon les
+groupes : c'est ce qui rend le problème apprenable. Et le délai, découpé en tranches, fait
+apparaître l'écart le plus net de la table.
+<strong>La mise en garde compte autant :</strong> les groupes trop petits sont signalés dans le tableau. Un écart
+lu sur quarante lignes est du hasard — on ne compare que des groupes d'au moins quelques centaines de
+lignes.</p>
+<blockquote>
+<p><strong>Question →</strong> <code>Devoir_maison_1.ipynb</code>, <strong>question 2 (carnet J1)</strong> — regrouper la cible, balayer toutes les colonnes, appliquer le critère des 500 lignes.</p>
+</blockquote>
+<h3>2.6 Les colonnes numériques disent-elles la même chose ?</h3>
+<p>Deux colonnes très corrélées portent souvent la même information : en garder deux, c'est alourdir
+le modèle sans rien lui apprendre. On le regarde sur un graphique, puis on chiffre.</p>
+<p>La corrélation lue ici est celle de <strong>Pearson</strong> : elle vaut entre −1 et +1, et mesure à quel
+point deux colonnes montent et descendent ensemble.</p>
+<p>$$r = \frac{\sum_i (x_i - \bar{x})\,(y_i - \bar{y})}{\sqrt{\sum_i (x_i - \bar{x})^2}\;\sqrt{\sum_i (y_i - \bar{y})^2}}$$</p>
+<p>Un $r$ proche de $+1$ (ou de $-1$) veut dire que les deux colonnes racontent la même histoire —
+et deux colonnes qui racontent la même histoire n'apportent pas deux fois l'information.</p>
+<pre><code>num = train.select_dtypes(&quot;number&quot;)
+corr = num.corr()
+fig, ax = plt.subplots(figsize=(8, 6))
+im = ax.imshow(corr, cmap=&quot;RdBu_r&quot;, vmin=-1, vmax=1)
+ax.set_xticks(range(len(corr))); ax.set_xticklabels(corr.columns, rotation=90, fontsize=7)
+ax.set_yticks(range(len(corr))); ax.set_yticklabels(corr.columns, fontsize=7)
+fig.colorbar(im, ax=ax, shrink=0.8)
+ax.set_title(&quot;corrélation entre les colonnes numériques&quot;)
+plt.tight_layout()
+plt.show()
+</code></pre>
+<pre class='out'>&lt;cellule 15&gt;:10: UserWarning: FigureCanvasAgg is non-interactive, and thus cannot be shown
+</pre>
+<pre><code>toutes = pd.DataFrame([(corr.columns[i], corr.columns[j], corr.iloc[i, j])
+                       for i in range(len(corr)) for j in range(i + 1, len(corr))],
+                      columns=[&quot;colonne A&quot;, &quot;colonne B&quot;, &quot;corrélation&quot;])
+paires = toutes.reindex(toutes[&quot;corrélation&quot;].abs().sort_values(ascending=False).index)[:8].round(2)
+
+print(&quot;les huit paires de colonnes les plus liées \n&quot;)
+display(paires)
+
+# LE RÉFÉRENT QU&#x27;ON VA ESSAYER, ET QU&#x27;ON VA ABANDONNER : la médiane des corrélations de TOUTES les
+# pairés de colonnes numériques — 231 paires, pas seulement les huit affichées. On montre juste après
+# qu&#x27;elle ne trie rien. C&#x27;est une comparaison écartée, pas une référence.
+mediane_autres = toutes[&quot;corrélation&quot;].abs().median()
+print(f&quot;médiane des {len(toutes) - 1} autres paires : {mediane_autres:.3f}&quot;)
+
+# les deux faits que la prose affirme : on les CALCULE, pour qu&#x27;on puisse les vérifier
+if {&quot;montant_acte&quot;, &quot;cout_acte&quot;} &lt;= set(train.columns):
+    rapport = train[&quot;montant_acte&quot;] / train[&quot;cout_acte&quot;]
+    print(f&quot;montant_acte / cout_acte : {rapport.median():.2f} en médiane&quot;)
+if {&quot;age&quot;, &quot;age_mois&quot;} &lt;= set(train.columns):
+    print(f&quot;age_mois / 12 == age : &quot;
+          f&quot;{(train[&#x27;age_mois&#x27;] / 12).round(0).eq(train[&#x27;age&#x27;]).mean() * 100:.1f} % des lignes&quot;)
+print(f&quot;paires au-dessus de 0,99 : {int((toutes[&#x27;corrélation&#x27;].abs() &gt; 0.99).sum())}&quot;)
+</code></pre>
+<pre class='out'>les huit paires de colonnes les plus liées 
+
+              colonne A         colonne B  corrélation
+37                  age          age_mois         1.00
+205        montant_acte         cout_acte         1.00
+165      encours_1_mois    encours_3_mois         0.99
+166      encours_1_mois    encours_6_mois         0.97
+176      encours_3_mois    encours_6_mois         0.96
+47         hypertension  charge_chronique         0.77
+125  duree_consultation    patient_absent        -0.76
+65              diabete  charge_chronique         0.48
+médiane des 230 autres paires : 0.002
+montant_acte / cout_acte : 13.68 en médiane
+age_mois / 12 == age : 100.0 % des lignes
+paires au-dessus de 0,99 : 2
+</pre>
+<p><strong>Ce que ça nous dit :</strong> une paire se détache, et une seule : <code>montant_acte</code> et <code>cout_acte</code>. Leur
+rapport vaut 13,68 sur presque toutes les lignes — l'une est le tarif de l'autre : c'est <strong>la même
+colonne écrite deux fois</strong>, pas deux colonnes qui se ressemblent. Le même cas se lit dans la même
+cellule : <code>age</code> et <code>age_mois</code> sont liés à 1,000, et pour cause — <code>age_mois ÷ 12</code> <strong>est</strong> <code>age</code>, sur
+100 % des lignes.</p>
+<p><strong>Attention à la comparaison.</strong> On vient d'essayer un référent — la médiane des corrélations de
+<strong>toutes</strong> les paires de colonnes numériques — et il ne sert à rien : il vaut 0,002, presque toute
+paire le dépasse, donc il ne trie aucune colonne. Ce n'est pas une référence du cours, c'est une
+comparaison qu'on essaie et qu'on met de côté. Ce qui compte n'est pas d'être au-dessus du bruit,
+c'est d'<strong>atteindre 1</strong> — la valeur exacte qui distingue un duplicat d'une simple ressemblance.</p>
+<p><strong>Ce qu'on en fait :</strong> n'en garder qu'une est un arbitrage, et il est renvoyé.</p>
+<h3>2.7 Les constats — un chiffre, une comparaison, une conséquence</h3>
+<p>Un constat a <strong>quatre morceaux</strong> : ce qu'on a vu, le chiffre exact, par rapport à quoi, et ce
+qu'on en fait. Le troisième est celui qui manque toujours — et c'est celui qui force à réfléchir.
+Les trois ci-dessous sont calculés devant vous : ce ne sont pas des exemples décoratifs, ce
+sont des constats sur <strong>cette</strong> table.</p>
+<p><strong>Pourquoi ces constats-là ?</strong> Chacun a été retenu parce qu'il déclenche une décision — et
+chacun tient sa comparaison contre un référent nommé.
+- La colonne constante attire l'attention parce qu'une colonne à une seule valeur est une
+  colonne morte. La comparaison — « 1 valeur sur toute la table » — est contre un référent nommé : elle ne dit
+  pas « cette colonne est bizarre », elle dit « elle ne peut rien apprendre à personne ». La
+  conséquence (l'écarter) ne se discute pas non plus — mais ce qu'elle rapporte, si : c'est
+  la séance 3 qui le chiffre.
+- Les deux colonnes liées attirent l'attention parce que leur rapport est constant. La
+  comparaison est contre un référent nommé : non pas « au-dessus de la médiane des autres paires » — qui vaut
+  0,002 et que presque toutes les paires dépassent — mais contre 1 : c'est la valeur exacte
+  qui distingue un duplicat d'une simple ressemblance. La conséquence (n'en garder qu'une) exige
+  en revanche de mesurer : elle est renvoyée.
+- <strong>La cible déséquilibrée</strong> attire l'attention parce qu'elle change le sens même du score. La
+  comparaison est contre un référent nommé : 18 % contre 50 % pour un problème équilibré — c'est ce qui
+  explique pourquoi 82 % peut être excellent ou nul. Sa conséquence n'est pas une action, mais une
+  phrase à écrire, avec le chiffre.</p>
+<pre><code>CONSTATS = []
+
+def constat(observation, chiffre, comparaison, consequence):
+    &quot;&quot;&quot;observation : ce qu&#x27;on a vu · chiffre : la mesure exacte
+       comparaison : par rapport à quoi ? · conséquence : garder, écarter, surveiller&quot;&quot;&quot;
+    ligne = {&quot;observation&quot;: observation, &quot;chiffre&quot;: chiffre,
+             &quot;comparaison&quot;: comparaison, &quot;conséquence&quot;: consequence}
+    CONSTATS[:] = [c for c in CONSTATS if c[&quot;observation&quot;] != observation] + [ligne]  # ré-exécuter REMPLACE
+    display(pd.DataFrame(CONSTATS))
+
+# trois constats réels, tirés de la table que vous venez de lire
+constat(&quot;une colonne ne dit rien&quot;,
+        f&quot;{train[&#x27;zone_clinique&#x27;].nunique()} valeur(s) distincte(s)&quot;,
+        f&quot;sur {len(train)} lignes, soit une colonne constante&quot;,
+        &quot;l&#x27;écarter — et ce qu&#x27;on y gagne se mesure : la séance 3 le chiffre&quot;)
+
+constat(&quot;deux colonnes disent la même chose&quot;,
+        f&quot;corrélation {corr.loc[&#x27;cout_acte&#x27;, &#x27;montant_acte&#x27;]:.3f} entre cout_acte et montant_acte&quot;,
+        f&quot;médiane des {len(toutes) - 1} autres paires : {mediane_autres:.3f} — mais c&#x27;est 1,000 qui compte : un rapport constant fait un duplicat, pas une ressemblance&quot;,
+        &quot;n&#x27;en garder qu&#x27;une&quot;)
+
+constat(&quot;la cible est déséquilibrée&quot;,
+        f&quot;{100 * train[CIBLE].mean():.2f} % d&#x27;absents&quot;,
+        &quot;contre 50 % pour un problème équilibré — la référence monte à {:.2f} %&quot;.format(reference),
+        &quot;le dire, avec le chiffre : cela conditionne la métrique&quot;)
+</code></pre>
+<pre class='out'>               observation  ...                                        conséquence
+0  une colonne ne dit rien  ...  l&#x27;écarter — et ce qu&#x27;on y gagne se mesure : la...
+
+[1 rows x 4 columns]
+                          observation  ...                                        conséquence
+0             une colonne ne dit rien  ...  l&#x27;écarter — et ce qu&#x27;on y gagne se mesure : la...
+1  deux colonnes disent la même chose  ...                                 n&#x27;en garder qu&#x27;une
+
+[2 rows x 4 columns]
+                          observation  ...                                        conséquence
+0             une colonne ne dit rien  ...  l&#x27;écarter — et ce qu&#x27;on y gagne se mesure : la...
+1  deux colonnes disent la même chose  ...                                 n&#x27;en garder qu&#x27;une
+2          la cible est déséquilibrée  ...  le dire, avec le chiffre : cela conditionne la...
+
+[3 rows x 4 columns]
+</pre>
+<blockquote>
+<p><strong>Question →</strong> <code>Devoir_maison_1.ipynb</code>, <strong>question 3 (carnet J1)</strong> — cinq constats chiffrés.</p>
+</blockquote>
+<h2>3. Préparer la table de travail</h2>
+<p>L'exploration a montré ce qui ne va pas. On prépare maintenant la table sur laquelle le modèle
+travaillera — et <strong>il faut séparer deux gestes qu'on confond tout le temps</strong> :</p>
+<ul>
+<li>une <strong>correction</strong> : le défaut est certain, et on sait exactement ce qu'on fait. Il n'y a
+  rien à comparer, donc rien à mesurer.</li>
+<li>un arbitrage : il faudrait <strong>comparer deux modèles</strong> pour trancher (imputer ou non, garder
+  cette colonne ou non). Il se mesure — et il se mesure avec les outils d'une séance ultérieure.</li>
+</ul>
+<p>Cette séparation n'est pas une coquetterie : elle dit <strong>qui paie</strong>. Une correction ne se discute
+pas ; un arbitrage se démontre, et coûte du temps.</p>
+<p><strong>Ce que cette section fait, et ce qu'elle ne fait pas.</strong> Elle établit les défauts par un
+comptage, et nomme les décisions en les renvoyant. Deux d'entre elles sont prises dans la
+cellule de la table de travail, et il faut les voir : les trous des colonnes catégorielles sont
+comblés par la chaîne vide, et une colonne à plus de 255 valeurs distinctes est écartée sans
+message. Ce ne sont pas des corrections — ce sont deux arbitrages silencieux, et on les écrit
+ici pour qu'ils cessent de l'être. La table qu'elle
+produit est celle qui sert dans ce carnet — et elle porte encore les deux âges impossibles :
+les corriger est un arbitrage, et c'est la <strong>séance 3</strong> qui chiffre ce qu'il coûte. Une correction
+qu'on ne mesure pas reste une correction qu'on ne sait pas défendre.</p>
+<p>On écarte <strong>quatre familles</strong> de colonnes. Chacune a sa raison propre, et c'est le tableau des
+familles qui fait la valeur de <code>A_ECARTER</code> — bien plus que la liste elle-même :</p>
+<ul>
+<li>les <strong>identifiants</strong> (<code>ligne_id</code>, <code>dossier_id</code>, <code>patient_id</code>) — ils désignent une ligne, ils ne
+  la décrivent pas ;</li>
+<li>les dates brutes (<code>date_prise</code>, <code>date_rdv</code>, <code>date_naissance</code>) — un numéro de date n'a pas de
+  grandeur utile ; la vraie information, c'est le délai, et il est déjà dans la table ;</li>
+<li>les mesures rangées en texte (<code>taille_cm</code>) — leur forme n'est pas exploitable telle quelle ;</li>
+<li>les <strong>colonnes qui disparaissent en production</strong> (<code>canal_prise</code>) — remplies ici, vides dans le
+  test. C'est la quatrième famille, la moins visible des quatre, et la séance 2 la traite (§4).</li>
+</ul>
+<p>Et une famille à part, parce qu'elle ne se voit ni au type ni à la cardinalité : les <strong>colonnes
+remplies après le rendez-vous</strong> (<code>duree_consultation</code>, <code>motif_absence</code>). Celles-là, la séance 2 les
+traque par la mesure.</p>
+<p><strong>Et une colonne dont je dois dire ce qu'elle est vraiment</strong> : <code>constantes_relevees</code> est écartée ici,
+mais elle <strong>n'est pas</strong> remplie après le rendez-vous. Le générateur qui a produit cette table la
+décrit ainsi : <em>« manquant structurel causé par la cible »</em> — 75 % de trous chez les absents, 35 %
+chez les présents. Son trou suit donc la réponse, et une colonne dont <strong>le trou suit la réponse</strong>
+est une fuite, de la même famille que <code>motif_absence</code>, en plus discret. <strong>On l'écarte — et ce choix
+a un coût mesuré</strong> : la garder, trou compris, rapporte <strong>+0,73 point</strong> d'exactitude. La séance 3 le
+chiffre, et la séance 2 en fait le cas de contraste de <code>motif_absence</code> : <em>un trou qui porte de
+l'information — mais d'où vient-il ?</em></p>
+<pre><code>A_ECARTER = [ID, &quot;dossier_id&quot;, &quot;patient_id&quot;, &quot;duree_consultation&quot;, &quot;constantes_relevees&quot;,
+             &quot;motif_absence&quot;, &quot;date_prise&quot;, &quot;date_rdv&quot;, &quot;taille_cm&quot;, &quot;date_naissance&quot;,
+             &quot;canal_prise&quot;]
+
+def matrice(cols):
+    &quot;&quot;&quot;La table de travail : colonnes écartées retirées, catégorielles déclarées.&quot;&quot;&quot;
+    X = cols.drop(columns=[c for c in A_ECARTER + [CIBLE] if c in cols.columns]).copy()
+    cat = [c for c in X.columns if not pd.api.types.is_numeric_dtype(X[c])]
+    trop_fin = [c for c in cat if X[c].nunique() &gt; 255]
+    X = X.drop(columns=trop_fin)
+    cat = [c for c in cat if c not in trop_fin]
+    for c in cat:
+        X[c] = X[c].fillna(&quot;&quot;).astype(&quot;category&quot;)
+    return X, cat, trop_fin
+
+X, CAT, TROP_FIN = matrice(train)
+Xt, _, _ = matrice(test)
+
+for c in CAT:
+    Xt[c] = Xt[c].cat.set_categories(X[c].cat.categories)
+
+print(&quot;la table de travail \n&quot;)
+print(&quot;colonnes conservées :&quot;, X.shape[1])
+print(&quot;colonnes écartées (cardinalité trop forte) :&quot;, TROP_FIN)
+print(&quot;colonnes catégorielles :&quot;, CAT)
+</code></pre>
+<pre class='out'>la table de travail 
+
+colonnes conservées : 26
+colonnes écartées (cardinalité trop forte) : [&#x27;tournee_jour&#x27;]
+colonnes catégorielles : [&#x27;clinique&#x27;, &#x27;district&#x27;, &#x27;sexe&#x27;, &#x27;quartier&#x27;, &#x27;assurance&#x27;, &#x27;rappel_envoye&#x27;, &#x27;zone_clinique&#x27;]
+</pre>
+<h3>3.1 Corriger — la taille rangée en texte</h3>
+<p><strong>Ce qu'on a trouvé :</strong> en 2.1, la colonne <code>taille_cm</code> figurait dans la liste des colonnes
+<strong>non numériques</strong> — un nombre rangé en texte.</p>
+<p>Un nombre rangé en texte n'est pas un arbitrage : c'est une <strong>correction</strong>. On sait ce que la
+colonne veut dire ; il manque juste le bon type. On convertit, et <strong>on regarde ce que la
+conversion rend possible</strong> — c'est là qu'est la conséquence, et elle se lit.</p>
+<p><strong>Ce qu'on ne fait pas pour autant :</strong> on ne met pas la colonne dans la table de travail. Décider
+de la garder est un <strong>arbitrage</strong> (il faudrait mesurer), et il appartient à la séance 3. La
+correction rend la colonne <em>comparable</em> ; elle ne dit pas qu'elle est <em>utile</em>.</p>
+<pre><code>taille = pd.to_numeric(train[&quot;taille_cm&quot;].str.replace(&quot;,&quot;, &quot;.&quot;), errors=&quot;coerce&quot;)
+
+bilan = pd.DataFrame({
+    &quot;valeurs&quot;: [int(taille.notna().sum()), int(taille.isna().sum())],
+}, index=[&quot;converties&quot;, &quot;non convertibles&quot;])
+print(&quot;la colonne de taille, après conversion \n&quot;)
+display(bilan)
+print(&quot;type obtenu :&quot;, taille.dtype)
+
+# LA CONSÉQUENCE : avant, on ne pouvait que compter des étiquettes ; après, on peut COMPARER
+avant_apres = pd.DataFrame({
+    &quot;valeurs distinctes&quot;: [train[&quot;taille_cm&quot;].nunique(), taille.nunique()],
+    &quot;plus petite&quot;: [min(train[&quot;taille_cm&quot;]), f&quot;{taille.min():.1f} cm&quot;],
+    &quot;plus grande&quot;: [max(train[&quot;taille_cm&quot;]), f&quot;{taille.max():.1f} cm&quot;],
+}, index=[&quot;rangée en texte&quot;, &quot;convertie en nombre&quot;])
+print(&quot;ce que la conversion change \n&quot;)
+display(avant_apres)
+print(f&quot;→ un tri sur du texte range « 99 » après « 100 » : &quot;
+      f&quot;{min(train[&#x27;taille_cm&#x27;])} est la plus PETITE chaîne, pas la plus petite taille.&quot;)
+</code></pre>
+<pre class='out'>la colonne de taille, après conversion 
+
+                  valeurs
+converties         149894
+non convertibles        0
+type obtenu : float64
+ce que la conversion change 
+
+                     valeurs distinctes plus petite plus grande
+rangée en texte                     675       125,8       205,4
+convertie en nombre                 675    125.8 cm    205.4 cm
+→ un tri sur du texte range « 99 » après « 100 » : 125,8 est la plus PETITE chaîne, pas la plus petite taille.
+</pre>
+<h3>3.2 Corriger — les lignes strictement dupliquées</h3>
+<p><strong>Ce qu'on a trouvé :</strong> en 2.4, le comptage a rendu <strong>zéro</strong>. Aucune ligne strictement
+identique, aucun identifiant de ligne dupliqué.</p>
+<p><strong>Il n'y a donc rien à corriger ici — et c'est un résultat.</strong> Un contrôle qui ne trouve rien est
+un contrôle qui a servi : il a établi que le défaut n'est pas là. C'est exactement ce qu'un
+audit demande, et c'est pour cela qu'on l'écrit quand même : « vérifié : 0 » est une phrase, alors
+que le silence n'en est pas une. La cellule ci-dessous le refait sous vos yeux, et le compte
+s'affiche : <strong>avant, après, retirées</strong>.</p>
+<pre><code>avant = len(train)
+train_sans_doublons = train.drop_duplicates()
+bilan = pd.DataFrame({&quot;lignes&quot;: [avant, len(train_sans_doublons), avant - len(train_sans_doublons)]},
+                     index=[&quot;avant&quot;, &quot;après&quot;, &quot;retirées&quot;])
+print(&quot;les doublons retirés \n&quot;)
+display(bilan)
+print(&quot;→ rien à retirer. La correction est un contrôle, et ce contrôle a rendu zéro.&quot;)
+</code></pre>
+<pre class='out'>les doublons retirés 
+
+          lignes
+avant     149894
+après     149894
+retirées       0
+→ rien à retirer. La correction est un contrôle, et ce contrôle a rendu zéro.
+</pre>
+<h3>3.3 Corriger — une valeur impossible</h3>
+<p><strong>Ce qu'on a trouvé :</strong> en 2.1, deux colonnes descendues sous zéro sans que ce soit possible —
+<code>age</code> (minimum −1) et <code>age_mois</code> (minimum −12). Ce ne sont pas des cas extrêmes : ce sont
+des <strong>enregistrements cassés</strong>.</p>
+<p>On ne les « corrige » pas — on ne connaît pas le vrai âge. Les <strong>marquer comme manquants</strong> et
+supprimer la ligne sont deux choses différentes : marquer laisse la ligne, sa clinique et son
+délai ; supprimer jette tout cela avec l'âge. Ici on <strong>établit</strong> le défaut, et on vérifie au passage
+si la casse laisse d'autres traces.</p>
+<p><strong>Et on s'arrête là.</strong> La table de travail de ce carnet garde ces lignes : les corriger est un
+arbitrage — décider quoi en faire, et le mesurer — et c'est la
+séance 3 qui le mesure, dans son journal de nettoyage. Ce que cette section établit, c'est le
+<strong>défaut</strong> et sa trace, pas sa réparation. Une correction dont on ne connaît pas le coût n'est pas
+une correction défendable ; on ne l'applique donc pas encore.</p>
+<pre><code># les deux colonnes, et ce qu&#x27;elles laissent voir
+impossible = train[&quot;age&quot;] == -1
+age_mois_impossible = train[&quot;age_mois&quot;] &lt; 0
+sans_naissance = train[&quot;date_naissance&quot;].isna()
+
+bilan = pd.DataFrame({
+    &quot;lignes concernées&quot;: [int(impossible.sum()), int(age_mois_impossible.sum())],
+    &quot;date de naissance absente sur ces mêmes lignes&quot;:
+        [int(train.loc[impossible, &quot;date_naissance&quot;].isna().sum()),
+         int(train.loc[age_mois_impossible, &quot;date_naissance&quot;].isna().sum())],
+}, index=[&quot;age&quot;, &quot;age_mois&quot;]).T
+print(&quot;les âges impossibles \n&quot;)
+display(bilan.rename(columns={0: &quot;valeur&quot;}))
+
+meme_lignes = set(train.index[impossible]) == set(train.index[sans_naissance])
+print(&quot;→ la casse laisse une trace ailleurs :&quot;,
+      &quot;OUI — la date de naissance manque sur les MÊMES lignes&quot; if meme_lignes
+      else &quot;NON — la trace n&#x27;est pas là, et il faut le dire ainsi&quot;)
+</code></pre>
+<pre class='out'>les âges impossibles 
+
+                                                age  age_mois
+lignes concernées                                46        46
+date de naissance absente sur ces mêmes lignes   46        46
+→ la casse laisse une trace ailleurs : OUI — la date de naissance manque sur les MÊMES lignes
+</pre>
+<blockquote>
+<p><strong>Question →</strong> <code>Devoir_maison_1.ipynb</code>, <strong>question 4 (carnet J1)</strong> — les trois défauts, annoncés puis mesurés.</p>
+</blockquote>
+<h2>4. La référence — ce que vaut un modèle qui ne fait rien</h2>
+<p>Avant de mesurer un modèle, il faut savoir ce que donne un modèle qui répond toujours la même
+chose. Ici, répondre « présent » à tout le monde vaut déjà <strong>81,75 %</strong> — sans une seule ligne
+d'apprentissage, parce que la cible est déséquilibrée.
+C'est pour cette raison qu'un score seul ne veut rien dire : 82 % peut être excellent ou nul, selon
+ce que le déséquilibre donne gratuitement. <strong>Ce chiffre est le plancher à battre.</strong></p>
+<p>La référence la plus simple est <strong>la classe majoritaire</strong> : répondre toujours la réponse la plus
+fréquente. Elle se calcule sans aucun modèle :</p>
+<p>$$R = \max\left(\bar{y},\; 1 - \bar{y}\right), \qquad \bar{y} = \frac{1}{n}\sum_{i=1}^{n} y_i$$</p>
+<p>où $\bar{y}$ est la part de positifs dans la table — ici $18{,}25\,\%$, d'où $R = 81{,}75\,\%$.</p>
+<blockquote>
+<p><strong>Question →</strong> <code>Devoir_maison_1.ipynb</code>, <strong>question 1 (carnet J1)</strong> — la cible, et la référence.</p>
+</blockquote>
+<pre><code># `y` entre ici ; la référence a déjà été calculée avec la distribution ci-dessus —
+y = train[CIBLE]
+</code></pre>
+
+<h2>5. Un premier modèle, et une mesure honnête</h2>
+<p>Un modèle sert à faire mieux que la référence <strong>sur des données qu'il n'a pas vues</strong>. On met donc
+20 % des lignes de côté, il ne les voit jamais, et on mesure sur elles — sinon on mesurerait sa
+mémoire, pas sa capacité à décider.
+Comment un arbre décide. Un arbre pose une suite de questions à seuil : « le délai dépasse-t-il
+sept jours ? » Selon la réponse, il descend d'un côté ou de l'autre, et repose une question —
+jusqu'à une feuille, qui porte la réponse. Chaque question est choisie en essayant toutes les
+colonnes et tous les seuils possibles, et en gardant celui qui sépare le mieux les deux issues.
+C'est ce qui le rend <strong>lisible</strong> : la règle peut s'écrire, et se vérifier à la main.</p>
+<p>Un arbre <strong>seul</strong>, en revanche, apprend la table par cœur : il descend jusqu'à ce que chaque feuille
+ne contienne plus presque qu'un seul cas, et il se trompe dès qu'on lui présente une ligne nouvelle.
+Il existe deux familles de remèdes, et il faut les distinguer : moyenner beaucoup d'arbres
+indépendants (le <em>bagging</em>), ou construire les arbres <strong>l'un après l'autre</strong> pour que chacun
+corrige ce que le précédent a raté (le <em>boosting</em>). C'est le second qu'on emploie ici.</p>
+<p>Le modèle employé est un <strong>ensemble d'arbres</strong> : des arbres de décision construits l'un après
+l'autre, chacun corrigeant les erreurs du précédent. Il prend les colonnes catégorielles telles
+quelles, sans encodage, et traverse les trous sans broncher.</p>
+<p>C'est le modèle tabulaire par défaut du métier : celui qui marche sans réglage fin, qui résiste
+aux colonnes inutiles, et qu'on déploie sans expertise pointue. Le connaître, c'est avoir une
+réponse solide à la question « par quoi on commence ? » — sur presque tous les sujets.</p>
+<p>La recette tient en une récurrence : on part d'une constante, puis chaque arbre corrige ce qui
+reste mal prédit.</p>
+<p>$$F_0(x) = \text{constante}, \qquad F_m(x) = F_{m-1}(x) + \eta \cdot h_m(x)$$</p>
+<p>$h_m$ est le $m$-ième arbre et $\eta$ le <strong>taux d'apprentissage</strong> — la part de chaque
+correction qu'on accepte. Le modèle final est $F_M$.</p>
+<p>La mesure employée ici est l'<strong>exactitude</strong> : la part de lignes bien classées.</p>
+<p>$$\text{exactitude} = \frac{#{\, i : \hat{y}_i = y_i \,}}{n}$$</p>
+<h4><code>random_state=0</code> — la graine, et pourquoi elle est toujours la même</h4>
+<p>Le découpage tire des lignes <strong>au hasard</strong>. <code>random_state=0</code> est le <strong>numéro de ce tirage</strong> : le même
+nombre redonne <strong>le même</strong> découpage, donc <strong>le même score</strong> — c'est ce qui rend votre mesure
+reproductible, et c'est ce que le règlement du cours exige (deux exécutions doivent rendre le même
+chiffre). Changez ce nombre, et vous changez le découpage : c'est exactement ce que fait la boucle
+des cinq graines deux cellules plus bas, exprès. Le même mot sur un modèle (<code>HistGradientBoosting-
+Classifier(random_state=0)</code>) fait la même chose pour ses propres tirages internes.</p>
+<pre><code># le modèle et le découpage : ils entrent ici
+from sklearn.ensemble import HistGradientBoostingClassifier
+from sklearn.model_selection import train_test_split
+Xtr, Xval, ytr, yval = train_test_split(X, y, test_size=0.2, stratify=y, random_state=0)
+
+modele = HistGradientBoostingClassifier(random_state=0).fit(Xtr, ytr)
+score_interne = 100 * modele.score(Xval, yval)
+
+print(f&quot;exactitude de validation : {score_interne:.2f} %   (référence : {reference:.2f} %)&quot;)
+print(f&quot;arbres effectivement construits : {modele.n_iter_} — le modèle s&#x27;arrête TOUT SEUL dès que sa&quot;)
+print(&quot;  part interne cesse de progresser (c&#x27;est l&#x27;arrêt anticipé), et non au nombre demandé.&quot;)
+</code></pre>
+<pre class='out'>exactitude de validation : 82.51 %   (référence : 81.75 %)
+arbres effectivement construits : 39 — le modèle s&#x27;arrête TOUT SEUL dès que sa
+  part interne cesse de progresser (c&#x27;est l&#x27;arrêt anticipé), et non au nombre demandé.
+</pre>
+<h4>D'abord, un arbre seul : comment il décide</h4>
+<p>Avant l'ensemble, l'arbre. <strong>Un arbre pose des questions, et coupe.</strong> « L'âge est-il sous 45 ? »
+scinde la table en deux ; chaque moitié est re-scindée ; après quelques questions, chaque extrémité
+— une <strong>feuille</strong> — ne contient plus qu'un petit paquet de lignes, et la feuille répond <strong>la réponse
+la plus fréquente de son paquet</strong>.</p>
+<p>Trois conséquences, et elles expliquent tout ce qui suit. Un arbre <strong>ne pèse pas</strong> ses colonnes : il
+<strong>coupe dedans</strong>, et il ne sait pas dire <em>de combien</em> une colonne compte — seulement <em>où</em> il a coupé.
+Laissé libre, il descend jusqu'à ce que chaque feuille contienne presque un seul cas : c'est la
+<strong>mémorisation</strong> de la séance précédente. Et un arbre, seul, est <strong>instable</strong> : deux tables
+légèrement différentes, et les premiers seuils changent.</p>
+<pre><code># le schéma d&#x27;un arbre seul : des questions, puis des feuilles qui répondent le plus fréquent
+fig, ax = plt.subplots(figsize=(8.8, 4.6))
+ax.axis(&quot;off&quot;)
+
+def boite(x, y, texte, largeur=1.9, hauteur=0.62, gras=False):
+    ax.add_patch(plt.Rectangle((x - largeur / 2, y - hauteur / 2), largeur, hauteur,
+                               facecolor=&quot;#eaf1f6&quot;, edgecolor=&quot;#4a7c9b&quot;))
+    ax.text(x, y, texte, ha=&quot;center&quot;, va=&quot;center&quot;, fontsize=9.5, weight=&quot;bold&quot; if gras else &quot;normal&quot;)
+
+def fleche(x1, y1, x2, y2, etiquette=&quot;&quot;, dx=0.16):
+    ax.annotate(&quot;&quot;, xy=(x2, y2), xytext=(x1, y1),
+                arrowprops=dict(arrowstyle=&quot;-|&gt;&quot;, color=&quot;#4a7c9b&quot;))
+    if etiquette:
+        ax.text((x1 + x2) / 2 + dx, (y1 + y2) / 2, etiquette, fontsize=8.5,
+                style=&quot;italic&quot;, color=&quot;#666666&quot;)
+
+boite(3.0, 3.4, &quot;age ≤ 45 ?&quot;, largeur=2.1, gras=True)
+boite(1.5, 2.3, &quot;assurance ?&quot;)
+boite(4.5, 2.3, &quot;délai ≤ 7 j ?&quot;)
+fleche(2.5, 3.15, 1.9, 2.65, &quot;oui&quot;); fleche(3.5, 3.15, 4.1, 2.65, &quot;non&quot;)
+for x, t in ((0.8, &quot;il vient&quot;), (2.2, &quot;absent&quot;), (3.8, &quot;absent&quot;), (5.2, &quot;il vient&quot;)):
+    ax.add_patch(plt.Rectangle((x - 0.62, 0.92), 1.24, 0.56, facecolor=&quot;#f7ece4&quot;, edgecolor=&quot;#b5651d&quot;))
+    ax.text(x, 1.2, t, ha=&quot;center&quot;, va=&quot;center&quot;, fontsize=9)
+fleche(1.2, 2.05, 0.9, 1.55); fleche(1.8, 2.05, 2.1, 1.55)
+fleche(4.2, 2.05, 3.9, 1.55); fleche(4.8, 2.05, 5.1, 1.55)
+ax.text(3.0, 0.45, &quot;chaque feuille répond la réponse la plus fréquente de son paquet de lignes&quot;,
+        ha=&quot;center&quot;, fontsize=9, style=&quot;italic&quot;, color=&quot;#555555&quot;)
+ax.text(3.0, 4.15, &quot;un arbre : une suite de questions, un paquet par extrémité&quot;, ha=&quot;center&quot;, fontsize=10.5)
+ax.text(3.0, 3.85, &quot;(les frontières sont des seuils — pas des poids)&quot;, ha=&quot;center&quot;, fontsize=8.5,
+        style=&quot;italic&quot;, color=&quot;#666666&quot;)
+ax.set_xlim(0, 6); ax.set_ylim(0.2, 4.5)
+plt.tight_layout(); plt.show()
+</code></pre>
+<pre class='out'>&lt;cellule 24&gt;:32: UserWarning: FigureCanvasAgg is non-interactive, and thus cannot be shown
+</pre>
+<h3>Ce que l'ensemble fait, en une figure</h3>
+<p>À gauche, le <strong>schéma</strong> de la boucle : on part d'une constante, et chaque arbre corrige ce qui
+reste mal prédit. À droite, la <strong>mesure</strong> sur nos données — ce que chaque arbre ajoute
+réellement au score, et où la boucle cesse de progresser.</p>
+<pre><code># ── le schéma, puis la mesure — sur NOS données
+fig, (gauche, droite) = plt.subplots(1, 2, figsize=(13, 4.8))
+
+# à gauche : la boucle
+gauche.axis(&quot;off&quot;)
+gauche.set_title(&quot;le schéma : chaque arbre corrige ce qui reste&quot;, fontsize=10)
+etapes = [(&quot;la constante&quot;, &quot;la réponse la plus fréquente&quot;),
+          (&quot;arbre 1&quot;, &quot;appris sur ce qui reste mal prédit&quot;),
+          (&quot;arbre 2&quot;, &quot;appris sur ce qui reste encore&quot;),
+          (&quot;...&quot;, &quot;...&quot;),
+          (&quot;arbre M&quot;, &quot;la dernière correction&quot;)]
+for k, (titre, sous) in enumerate(etapes):
+    yy = 0.84 - 0.165 * k
+    gauche.add_patch(plt.Rectangle((0.05, yy - 0.055), 0.90, 0.105,
+                                   facecolor=&quot;#eaf1f6&quot;, edgecolor=&quot;#4a7c9b&quot;))
+    gauche.text(0.5, yy + 0.012, titre, ha=&quot;center&quot;, fontsize=9, weight=&quot;bold&quot;)
+    gauche.text(0.5, yy - 0.037, sous, ha=&quot;center&quot;, fontsize=7.5, color=&quot;#555555&quot;)
+    if k &lt; len(etapes) - 1:
+        gauche.annotate(&quot;&quot;, xy=(0.5, yy - 0.115), xytext=(0.5, yy - 0.065),
+                        arrowprops=dict(arrowstyle=&quot;-|&gt;&quot;, color=&quot;#4a7c9b&quot;))
+gauche.text(0.5, 0.015, &quot;la réponse = la constante + la somme des corrections&quot;,
+            ha=&quot;center&quot;, fontsize=8.5, style=&quot;italic&quot;)
+
+# à droite : ce que la boucle donne, mesuré
+paliers = [p for p in (1, 2, 5, 10, 25, 50, 100) if p &lt;= modele.n_iter_]
+if modele.n_iter_ not in paliers:
+    paliers.append(modele.n_iter_)
+courbe = [(n, 100 * (pred == yval).mean())
+          for n, pred in enumerate(modele.staged_predict(Xval), 1) if n in paliers]
+droite.plot([n for n, _ in courbe], [s for _, s in courbe], marker=&quot;o&quot;, color=&quot;#4a7c9b&quot;)
+droite.axhline(reference, color=&quot;#b5651d&quot;, linestyle=&quot;--&quot;, linewidth=1)
+droite.set_xscale(&quot;log&quot;)
+droite.set_xticks(paliers)
+droite.set_xticklabels([str(p) for p in paliers])
+droite.set_xlabel(&quot;nombre d&#x27;arbres&quot;)
+droite.set_ylabel(&quot;exactitude de validation (%)&quot;)
+droite.set_title(&quot;la mesure : ce que chaque arbre ajoute&quot;, fontsize=10)
+plt.tight_layout()
+plt.show()
+
+premiers = courbe[2][1] if len(courbe) &gt; 2 else courbe[-1][1]
+print(f&quot;à 5 arbres : {premiers:.2f} %  ·  au dernier arbre construit ({modele.n_iter_}) : &quot;
+      f&quot;{courbe[-1][1]:.2f} %  ·  référence : {reference:.2f} %&quot;)
+</code></pre>
+<pre class='out'>&lt;cellule 25&gt;:39: UserWarning: FigureCanvasAgg is non-interactive, and thus cannot be shown
+à 5 arbres : 81.75 %  ·  au dernier arbre construit (39) : 82.51 %  ·  référence : 81.75 %
+</pre>
+<h4>Une différence de combien compte-t-elle ?</h4>
+<p>Un score n'est pas un nombre exact : c'est une <strong>mesure</strong>, et une mesure a une erreur. Sur 29 979
+lignes de validation avec une cible à 18 %, l'<strong>erreur-type</strong> de l'exactitude vaut <strong>± 0,22 point</strong> —
+et elle ne dépend pas du modèle : c'est le tirage qui bouge, pas lui.</p>
+<p><strong>Traduisons-la, parce qu'un dixième de point ne veut rien dire tout seul.</strong> 0,22 point sur 29 979
+lignes, c'est <strong>environ 66 lignes</strong> qui basculent d'un côté ou de l'autre de la frontière. Deux
+scores séparés par moins que ça, c'est le tirage au sort, pas votre idée. Et comme on compare
+souvent <strong>deux</strong> modèles, la règle tient en une ligne : <strong>un écart compte à partir de deux
+erreurs-types, soit ~0,44 point ici.</strong> En dessous, on ne conclut pas.</p>
+<p>Regardez la cellule qui suit : le <strong>même</strong> modèle, cinq découpages, et une étendue observée de
+<strong>0,12 point</strong>. Les deux chiffres ne se contredisent pas : l'erreur-type (0,22) borne ce que le
+hasard <em>peut</em> faire, l'étendue observée (0,12) dit ce qu'il a fait sur ces cinq tirages.</p>
+<p><strong>Une nuance, pour plus tard.</strong> Quand deux modèles sont jugés sur <strong>les mêmes</strong> lignes de
+validation, leur différence est moins bruitée que celle de deux scores indépendants : comparer deux
+modèles appariés est plus sensible que cette barre. Une autre séance nomme ce test — ici, on garde la
+barre du cours, qui est prudente.</p>
+<p>Regardez la cellule qui suit : le <strong>même</strong> modèle, cinq découpages différents, cinq scores
+différents. Tant qu'on ne connaît pas cette amplitude, on ne peut pas dire si une amélioration de
+0,3 point est une amélioration — et la plupart des gains qu'on croit voir sont plus petits que
+l'erreur. La séance 3 en fera un sujet à part entière ; ici, il suffit de savoir que le chiffre
+existe.</p>
+<pre><code># le même modèle, cinq découpages : jusqu&#x27;où le score bouge-t-il tout seul ?
+graines = []
+for graine in range(5):
+    a, b, c, d = train_test_split(X, y, test_size=0.2, stratify=y, random_state=graine)
+    m = HistGradientBoostingClassifier(random_state=0).fit(a, c)
+    graines.append({&quot;graine&quot;: graine, &quot;exactitude de validation (%)&quot;: round(100 * m.score(b, d), 2)})
+
+print(&quot;le même modèle, cinq découpages différents \n&quot;)
+display(pd.DataFrame(graines))
+
+scores = [g[&quot;exactitude de validation (%)&quot;] for g in graines]
+etendue = max(scores) - min(scores)
+
+# l&#x27;erreur-type d&#x27;une exactitude : racine de p(1-p)/n
+n_controle = len(yval)
+p = score_interne / 100
+erreur_type = 100 * (p * (1 - p) / n_controle) ** 0.5
+
+print(f&quot;étendue observée sur cinq graines : {etendue:.2f} point(s)&quot;)
+print(f&quot;erreur-type de l&#x27;exactitude sur {n_controle} lignes de validation : ± {erreur_type:.2f} point(s)&quot;)
+print(f&quot;→ la barre du cours est de {erreur_type:.2f} point(s) : en dessous, ce n&#x27;est pas une différence.&quot;)
+</code></pre>
+<pre class='out'>le même modèle, cinq découpages différents 
+
+   graine  exactitude de validation (%)
+0       0                         82.51
+1       1                         82.52
+2       2                         82.39
+3       3                         82.42
+4       4                         82.52
+étendue observée sur cinq graines : 0.13 point(s)
+erreur-type de l&#x27;exactitude sur 29979 lignes de validation : ± 0.22 point(s)
+→ la barre du cours est de 0.22 point(s) : en dessous, ce n&#x27;est pas une différence.
+</pre>
+<h4>Le diagnostic qu'on n'a pas encore regardé : l'écart</h4>
+<p>Un score de validation, seul, ne dit pas si le modèle a <strong>appris</strong> ou mémorisé. Le second chiffre
+qui le dit est le score sur les lignes qu'il a vues — l'<strong>entraînement</strong>. Comparez-les : un
+modèle qui mémorise obtient un score d'entraînement très haut et un score de validation bien plus
+bas. Un modèle qui apprend obtient deux scores proches.</p>
+<p>C'est la cellule ci-dessous, et elle ne coûte rien. <strong>L'inverse — un modèle qui apprend la table par
+cœur — se démontre en séance 2</strong>, sur un arbre seul : il faut pour cela convertir les colonnes de
+texte, et c'est justement ce que la séance 2 enseigne.</p>
+<pre><code># le second chiffre : le score sur les lignes que le modèle a VUES
+entrainement = 100 * modele.score(Xtr, ytr)
+
+lignes = pd.DataFrame({
+    &quot;lignes&quot;: [len(Xtr), len(Xval)],
+    &quot;exactitude (%)&quot;: [round(entrainement, 2), round(score_interne, 2)],
+}, index=[&quot;vues à l&#x27;entraînement&quot;, &quot;mises de côté (validation)&quot;])
+
+print(&quot;le même modèle, sur les lignes vues et sur celles qu&#x27;il n&#x27;a jamais vues \n&quot;)
+display(lignes)
+
+ecart = entrainement - score_interne
+print(f&quot;écart entraînement - validation : {ecart:+.2f} point(s)&quot;)
+print(f&quot;barre de bruit du cours : {erreur_type:.2f} point(s)&quot;)
+print(&quot;→ un écart du même ordre que le bruit : ce modèle n&#x27;a pas mémorisé la table. C&#x27;est le&quot;)
+print(&quot;  diagnostic. Un écart de plusieurs dizaines de points, ça, c&#x27;est de la mémorisation —&quot;)
+print(&quot;  et la séance 2 le montre sur un arbre seul.&quot;)
+</code></pre>
+<pre class='out'>le même modèle, sur les lignes vues et sur celles qu&#x27;il n&#x27;a jamais vues 
+
+                            lignes  exactitude (%)
+vues à l&#x27;entraînement       119915           82.91
+mises de côté (validation)   29979           82.51
+écart entraînement - validation : +0.40 point(s)
+barre de bruit du cours : 0.22 point(s)
+→ un écart du même ordre que le bruit : ce modèle n&#x27;a pas mémorisé la table. C&#x27;est le
+  diagnostic. Un écart de plusieurs dizaines de points, ça, c&#x27;est de la mémorisation —
+  et la séance 2 le montre sur un arbre seul.
+</pre>
+<blockquote>
+<p><strong>Question →</strong> <code>Devoir_maison_1.ipynb</code>, <strong>questions 5 et 6 (carnet J1)</strong> — la barre qui décide : la taille du jeu de validation, puis la formule qui déborde.</p>
+</blockquote>
+<h2>6. Les réglages du modèle</h2>
+<p>Un modèle manipule deux sortes de nombres. Les <strong>paramètres</strong> sont ce qu'il apprend dans les
+données : les points de coupe de ses arbres. Personne ne les fixe à la main — ils sortent de
+l'entraînement. Les hyperparamètres sont ce que vous fixez avant l'entraînement : le
+nombre d'arbres, la taille du pas d'apprentissage, le nombre de feuilles par arbre.
+La règle de la cellule qui suit : <strong>un seul hyperparamètre bouge à la fois</strong>, et on mesure. C'est la
+discipline du tableau d'essais — une expérience, une variable, une mesure.</p>
+<p>Les deux leviers de la récurrence précédente portent un nom : le <strong>nombre d'arbres</strong> $M$ et le
+<strong>taux d'apprentissage</strong> $\eta$. Trop peu d'arbres, et le modèle n'a pas fini d'apprendre ; un
+$\eta$ trop grand, et chaque arbre corrige si fort qu'il fait osciller le modèle. C'est le
+compromis de tout apprentissage : assez de pas, et pas des pas trop grands.</p>
+<p><strong>Un troisième mécanisme décide à votre place</strong>, et il faut le connaître pour lire la cellule qui
+suit : l'arrêt anticipé. Le modèle met une part de ses lignes de côté <strong>pour lui-même</strong> — ce
+n'est PAS le jeu de validation du cours : c'est sa part interne. Il la surveille à chaque arbre. <strong>C'est pourquoi</strong> demander 200 arbres n'en donne pas 200 — et
+pourquoi deux réglages très différents peuvent rendre exactement le même score. La colonne <code>arbres effectivement construits</code> du tableau
+le montre.</p>
+<pre><code>reglages = []
+for arbres in (10, 50, 200):
+    m = HistGradientBoostingClassifier(max_iter=arbres, random_state=0).fit(Xtr, ytr)
+    reglages.append({&quot;max_iter&quot;: arbres, &quot;arbres construits&quot;: m.n_iter_,
+                     &quot;exactitude (%)&quot;: round(100 * m.score(Xval, yval), 2)})
+
+print(&quot;le même modèle, sous trois réglages différents \n&quot;)
+display(pd.DataFrame(reglages))
+print(&quot;→ 10 arbres : le modèle n&#x27;a pas fini d&#x27;apprendre. 50 et 200 s&#x27;arrêtent au MÊME endroit —&quot;)
+print(&quot;  ce n&#x27;est pas le nombre d&#x27;arbres qui décide, c&#x27;est l&#x27;arrêt anticipé. Au-delà, régler ne&quot;)
+print(&quot;  rapporte rien, et la raison n&#x27;est pas celle qu&#x27;on croit.&quot;)
+</code></pre>
+<pre class='out'>le même modèle, sous trois réglages différents 
+
+   max_iter  arbres construits  exactitude (%)
+0        10                 10           82.15
+1        50                 39           82.51
+2       200                 39           82.51
+→ 10 arbres : le modèle n&#x27;a pas fini d&#x27;apprendre. 50 et 200 s&#x27;arrêtent au MÊME endroit —
+  ce n&#x27;est pas le nombre d&#x27;arbres qui décide, c&#x27;est l&#x27;arrêt anticipé. Au-delà, régler ne
+  rapporte rien, et la raison n&#x27;est pas celle qu&#x27;on croit.
+</pre>
+<blockquote>
+<p><strong>Question →</strong> <code>Devoir_maison_1.ipynb</code>, <strong>question 7 (carnet J1)</strong> — le pas d'apprentissage, dans un tableau de réglages.</p>
+</blockquote>
+<h2>7. Prédire, et écrire la soumission</h2>
+<p>Un modèle qui n'écrit rien ne sert à personne. On prédit sur le test de la compétition et on écrit
+un fichier : un identifiant et une prédiction 0/1, une ligne par ligne. <strong>Ce fichier est ce que le devoir 1 vous fera contrôler</strong> — c'est lui qu'on téléverse, et c'est lui qui apparaît au classement.</p>
+<p>Trois choses s'y jouent, et la troisième est celle qu'on oublie :</p>
+<ul>
+<li><strong>la forme</strong> — exactement les deux colonnes attendues, exactement les identifiants du test ;</li>
+<li>l'ordre — la compétition rapproche les lignes par identifiant, pas par position, mais un
+  fichier mal ordonné reste le signe d'une jointure douteuse ;</li>
+<li>le contrôle — la part de <code>1</code> prédits doit ressembler à quelque chose. Deux extrêmes
+  sont des alarmes : 0 %, ou 100 % — un fichier entièrement constant ne prédit rien.
+  Entre les deux, méfiance inverse — et la raison est précise : le modèle annonce « absent »
+  seulement quand sa probabilité dépasse 0,5. Avec 18 % d'absents dans la table, ce seuil est
+  rarement franchi : il annonce donc <strong>moins</strong> d'absents que la réalité. Ce n'est pas une erreur de
+  réglage, c'est le seuil qui veut ça.</li>
+</ul>
+<p><strong>Ce que le classement juge.</strong> Il juge avec la <strong>même mesure que celle employée ici depuis le
+début : l'exactitude</strong>, imposée pour tout le semestre. Le dire évite une question légitime : « pour
+être bien classé, il faut optimiser quoi ? » Réponse courte : la même chose que vous mesurez.</p>
+<p><strong>C'est le même geste</strong> : un modèle qui n'est pas branché sur un fichier de soumission
+n'existe pas. Et le contrôle de forme avant l'envoi évite la panne la plus bête — la soumission
+rejetée pour un identifiant manquant.</p>
+<pre><code>soumission = pd.DataFrame({ID: test[ID], CIBLE: modele.predict(Xt).astype(int)})
+soumission.to_csv(&quot;submission.csv&quot;, index=False)
+
+print(&quot;le fichier écrit : submission.csv \n&quot;)
+print(&quot;dimensions :&quot;, soumission.shape, &quot;(lignes, colonnes)&quot;)
+display(soumission.head())
+</code></pre>
+<pre class='out'>le fichier écrit : submission.csv 
+
+dimensions : (63721, 2) (lignes, colonnes)
+   ligne_id  patient_absent
+0     44088               0
+1    120507               0
+2     46612               0
+3      3933               0
+4    144527               0
+</pre>
+<h2>8. Le tableau d'essais</h2>
+<p>Ce qu'on lit à la fin, ce n'est pas le score : c'est <strong>le tableau</strong>. Chaque essai porte une
+hypothèse, un changement, ce que vous attendiez, et ce que vous avez <strong>mesuré</strong>.</p>
+<p>La colonne <code>attendu</code> ne demande pas de deviner un chiffre — c'est impossible — mais un <strong>signe et
+une raison</strong> : mieux que la référence, pire qu'avant, ou pareil, et pourquoi. C'est ce qui
+transforme « exécuter puis regarder » en « <strong>annoncer, puis mesurer</strong> ».</p>
+<p><strong>Pourquoi le tableau plutôt que le score :</strong> un score isolé ne s'explique pas, et ne se
+reproduit pas. Un tableau se relit six semaines plus tard : on y voit ce qu'on a essayé, ce qu'on
+croyait, et ce qui s'est passé — y compris les essais qui n'ont rien donné, qui sont souvent les
+plus instructifs.</p>
+<pre><code># l&#x27;horloge entre ici : c&#x27;est elle qui rend une prédiction vérifiable
+from datetime import datetime
+
+ESSAIS = []
+PREDICTIONS = []
+
+def prevoir(essai, attendu, raison):
+    &quot;&quot;&quot;Écrit ce que vous attendez AVANT de mesurer — horodaté.
+       `noter(...)` refuse ensuite tout essai sans prédiction : l&#x27;ordre n&#x27;est pas demandé, il est
+       appliqué. Ce que cette fonction garantit, exactement : une prédiction EXISTAIT avant que la
+       ligne du tableau soit écrite. Elle ne date pas la mesure — le score lui arrive déjà calculé.
+       Pour la garantie complète, mesurez dans `essai(...)`, qui date la mesure lui-même.&quot;&quot;&quot;
+    PREDICTIONS[:] = [p for p in PREDICTIONS if p[&quot;essai&quot;] != essai]
+    PREDICTIONS.append({&quot;essai&quot;: essai, &quot;attendu&quot;: attendu, &quot;raison&quot;: raison,
+                        &quot;écrit à&quot;: datetime.now().strftime(&quot;%H:%M:%S&quot;)})
+    display(pd.DataFrame(PREDICTIONS))
+
+def essai(nom, mesure, changement=&quot;&quot;, attendu=&quot;&quot;):
+    &quot;&quot;&quot;Le chemin STRICT : la mesure est prise ICI, donc l&#x27;ordre (prédiction puis mesure) est prouvé.
+       `mesure` est une fonction sans argument qui rend le score, par exemple
+       `lambda: modele.score(Xval, yval)`. Refuse de mesurer sans prédiction.&quot;&quot;&quot;
+    prevu = [p for p in PREDICTIONS if p[&quot;essai&quot;] == nom]
+    if not prevu:
+        print(f&quot;refusé : aucune prédiction pour « {nom} ». Écrivez prevoir(...) d&#x27;abord.&quot;)
+        return None
+    score = 100 * mesure()
+    noter(nom, changement or &quot;voir la question&quot;, attendu or prevu[0][&quot;attendu&quot;], score)
+    return score
+
+def noter(hypothese, changement, attendu, score):
+    &quot;&quot;&quot;Ajoute une ligne au tableau. `attendu` : un signe et une raison, jamais une valeur.
+       Ré-exécuter une cellule REMPLACE la ligne de même `hypothèse` : elle ne la double pas.
+
+       REFUSE d&#x27;enregistrer un essai non annoncé — c&#x27;est la règle du cours, appliquée.
+       Ce qu&#x27;elle garantit, et rien de plus : une prédiction existait AVANT que cette ligne soit
+       écrite. Elle ne date pas la mesure — d&#x27;où `essai(...)` pour la garantie complète.&quot;&quot;&quot;
+    prevu = [p for p in PREDICTIONS if p[&quot;essai&quot;] == hypothese]
+    if not prevu:
+        print(f&quot;  refusé : aucune prédiction pour « {hypothese} ».&quot;)
+        print(&quot;  Écrivez prevoir(...) d&#x27;abord — l&#x27;ordre est vérifié, pas seulement demandé.&quot;)
+        return
+    ligne = {&quot;hypothèse&quot;: hypothese, &quot;changement&quot;: changement,
+             &quot;attendu&quot;: attendu, &quot;mesuré&quot;: round(score, 2),
+             &quot;prédiction écrite avant ?&quot;: &quot;oui, à &quot; + prevu[0][&quot;écrit à&quot;]}
+    ESSAIS[:] = [e for e in ESSAIS if e[&quot;hypothèse&quot;] != hypothese] + [ligne]
+    display(pd.DataFrame(ESSAIS))
+
+# les deux amorces du carnet sont annoncées elles aussi — sinon elles ne passeraient pas
+prevoir(&quot;rien faire du tout&quot;, &quot;c&#x27;est le minimum à battre&quot;,
+        &quot;un modèle qui répond toujours la même chose vaut la classe majoritaire&quot;)
+prevoir(&quot;un modèle suffit-il ?&quot;, &quot;mieux que la référence&quot;,
+        &quot;les arbres captent une partie du signal, pas tout&quot;)
+noter(&quot;rien faire du tout&quot;, &quot;classe majoritaire&quot;, &quot;c&#x27;est le minimum à battre&quot;, reference)
+noter(&quot;un modèle suffit-il ?&quot;, &quot;HistGradientBoosting&quot;, &quot;mieux que la référence&quot;, score_interne)
+</code></pre>
+<pre class='out'>                essai  ...   écrit à
+0  rien faire du tout  ...  09:37:04
+
+[1 rows x 4 columns]
+                   essai  ...   écrit à
+0     rien faire du tout  ...  09:37:04
+1  un modèle suffit-il ?  ...  09:37:04
+
+[2 rows x 4 columns]
+            hypothèse          changement  ... mesuré  prédiction écrite avant ?
+0  rien faire du tout  classe majoritaire  ...  81.75            oui, à 09:37:04
+
+[1 rows x 5 columns]
+               hypothèse  ... prédiction écrite avant ?
+0     rien faire du tout  ...           oui, à 09:37:04
+1  un modèle suffit-il ?  ...           oui, à 09:37:04
+
+[2 rows x 5 columns]
+</pre>
+<blockquote>
+<p><strong>Question →</strong> <code>Devoir_maison_1.ipynb</code>, <strong>question 8 (carnet J1)</strong> — vos propres essais.</p>
+</blockquote>
+<pre><code># votre feature : elle reçoit la TABLE DE TRAVAIL — identifiants, dates et colonnes post-issue
+# déjà retirés — et la rend enrichie. `predict` l&#x27;appelle sur la table BRUTE, après avoir retiré
+# les mêmes colonnes : le crochet voit donc la même forme des deux côtés, ce qui est la règle.
+def ajouter_features(df):
+    &quot;&quot;&quot;Vos features maison. Appliquée identiquement à l&#x27;entraînement et au test.&quot;&quot;&quot;
+    df = df.copy()
+    # Exemple — remplacez-le par la vôtre :
+    # df[&quot;plus_de_60_ans&quot;] = (df[&quot;age&quot;] &gt; 60).astype(int)
+    return df
+
+# Votre feature entre par `preparer()`, la chaîne unique : on n&#x27;applique RIEN à la main.
+# Après l&#x27;avoir écrite, appelez `remesurer()` (au devoir, dans la cellule prévue) : `X` la
+# reçoit une seule fois, et `predict` l&#x27;applique aussi, de son côté, sur la table brute.
+</code></pre>
+
+<h2>9. L'interface — un modèle qu'on peut appeler</h2>
+<p>J'ouvrirai votre notebook, j'irai à la cellule <code>predict</code>, et je l'exécuterai sur le tableau
+de test — <strong>sans lire le reste</strong>. C'est la raison d'être de cette fonction : elle prend un tableau
+<strong>brut</strong> et rend un 0/1 par ligne, en refaisant <em>toutes</em> les opérations de la chaîne.</p>
+<p>La cellule juste avant est votre <strong>crochet de features</strong> : <code>ajouter_features</code> reçoit la table et
+la rend, et c'est par là que vos colonnes fabriquées entrent dans la chaîne — <strong>des deux côtés</strong>,
+puisque <code>predict</code> l'appelle sur la table brute comme sur celle d'entraînement. La séance 2 y
+reviendra ; ici, elle est vide, et le modèle fonctionne sans elle.</p>
+<p>Écrire cette fonction est aussi le moment où vous êtes obligé de décider ce qui passe par la
+chaîne — la règle des deux côtés, rendue exécutable. Tout le travail se fait <strong>dedans</strong> : écarter
+les colonnes, traiter les catégorielles, appliquer vos features. C'est la seule façon d'être sûr
+que le traitement appliqué au test est exactement celui appliqué à l'entraînement. Le test qui
+suit vérifie qu'elle répond.</p>
+<p><strong>C'est la différence entre un travail de cours et un modèle qu'on peut appeler</strong> : un modèle qu'on ne
+peut pas appeler n'est pas un modèle — c'est une capture d'écran.</p>
+<p><strong>Une seule chaîne, des deux côtés.</strong> <code>predict</code> ne refait pas le travail à la main : elle appelle
+<code>preparer</code>, exactement comme l'entraînement. C'est ce couplage qui rend le défaut de la séance 2
+reproductible — et contournable, pour le voir de ses yeux (question 10 du devoir).</p>
+<pre><code># ── LA CHAÎNE : une seule fonction, celle que `predict` ET l&#x27;entraînement utilisent.
+def preparer(brut):
+    &quot;&quot;&quot;Écarte, type, applique vos features : LA chaîne, des deux côtés.
+       `predict` l&#x27;appelle ; l&#x27;entraînement l&#x27;appelle aussi, par `matrice()` sur la table de
+       travail. Contourner cette fonction, c&#x27;est apprendre sur une table et prédire sur une
+       autre — exactement le défaut que la séance 2 traque.&quot;&quot;&quot;
+    d = brut.drop(columns=[c for c in A_ECARTER + TROP_FIN + [CIBLE] if c in brut.columns],
+                  errors=&quot;ignore&quot;).copy()
+    for c in CAT:
+        if c in d.columns:
+            d[c] = d[c].fillna(&quot;&quot;).astype(&quot;category&quot;).cat.set_categories(X[c].cat.categories)
+    return ajouter_features(d)
+
+def remesurer():
+    &quot;&quot;&quot;Réentraîne sur la table de travail COURANTE et met `modele` à jour.
+       `ajouter_features` n&#x27;est appliquée qu&#x27;UNE fois, depuis X : ré-exécutable sans que la
+       feature se superpose à elle-même.&quot;&quot;&quot;
+    global modele
+    Xc = ajouter_features(X)
+    a, b, c, d = train_test_split(Xc, y, test_size=0.2, stratify=y, random_state=0)
+    modele = HistGradientBoostingClassifier(random_state=0).fit(a, c)
+    return 100 * modele.score(b, d)
+</code></pre>
+
+<pre><code># numpy, pour la seule assertion qui suit
+import numpy as np
+
+def predict(df):
+    &quot;&quot;&quot;Renvoie un tableau de 0/1, un par ligne de df. C&#x27;est cette fonction que le cours appellera.
+       Elle passe par `preparer(...)`, la même chaîne que l&#x27;entraînement — pas une copie.&quot;&quot;&quot;
+    # elle ne refait PAS la chaîne à la main : elle appelle `preparer`, celle de l&#x27;entraînement.
+    # C&#x27;est ce couplage qui garantit qu&#x27;une table n&#x27;est jamais préparée de deux façons.
+    return modele.predict(preparer(df)).astype(int)
+
+def test_predict():
+    &quot;&quot;&quot;Vérifie que l&#x27;interface répond ce qu&#x27;on attend d&#x27;elle.&quot;&quot;&quot;
+    p = predict(test.head(500))
+
+    assert len(p) == 500, f&quot;attendu 500 prédictions, obtenu {len(p)}&quot;
+    assert set(np.unique(p)) &lt;= {0, 1}, &quot;les valeurs doivent être 0 ou 1&quot;
+    print(f&quot;test OK — 500 prédictions, {int(sum(p))} positifs&quot;)
+
+test_predict()
+</code></pre>
+<pre class='out'>test OK — 500 prédictions, 31 positifs
+</pre>
+<h2>10. Le dépôt</h2>
+<p><strong>À quoi sert un dépôt, et ce que je regarde.</strong> Le règlement du cours demande que ce qui est <strong>jugé</strong>
+arrive dans un dépôt : vos <strong>trois exercices notés</strong> (E1, E2, E3), vos <strong>devoirs</strong>, et le <strong>projet</strong>.
+C'est là que je lis, et c'est ce qui porte votre nom : un travail qui vit sur votre machine et nulle
+part ailleurs n'est jamais arrivé.</p>
+<p><strong>La déclaration d'usage de l'IA accompagne ce qui est jugé</strong> — exercices, devoirs, projet. Elle dit
+les outils employés, les tâches où ils sont intervenus, et surtout <strong>ce que vous ne sauriez pas
+expliquer</strong> : c'est ce qui permet de juger le travail plutôt que de le soupçonner.</p>
+<p><strong>Ce carnet-ci, lui, est un support de cours.</strong> Je ne relève pas son dépôt à chaque séance : il est
+là pour que vous pratiquiez, et il vous reste. La cellule qui suit montre <strong>le geste</strong>, et il est
+court : vérifier l'<strong>état</strong> du dépôt, jamais sa valeur — inutile d'imprimer votre adresse à l'écran,
+et un notebook forké emporte ses sorties.</p>
+<pre><code>import subprocess
+
+try:
+    for cle in (&quot;user.name&quot;, &quot;user.email&quot;):
+        r = subprocess.run([&quot;git&quot;, &quot;config&quot;, &quot;--global&quot;, cle], capture_output=True, text=True)
+        v = r.stdout.strip()
+        # On affiche l&#x27;ÉTAT, pas la valeur : un notebook forké emporte ses sorties.
+        print(f&quot;  git {cle:&lt;10} : {&#x27;renseigné&#x27; if v else &#x27;NON RENSEIGNÉ — à faire&#x27;}&quot;)
+except FileNotFoundError:
+    print(&quot;git n&#x27;est pas disponible ici — les commandes sont à passer en local&quot;)
+</code></pre>
+<pre class='out'>  git user.name  : renseigné
+  git user.email : renseigné
+</pre>
+</body></html>

@@ -1,0 +1,629 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8">
+<title>notebook_J2 — exécuté</title>
+<style>
+ body{max-width:52rem;margin:2rem auto;padding:0 1rem;line-height:1.55;
+       font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#1b1b1b}
+ h1,h2,h3,h4{line-height:1.25}
+ table{border-collapse:collapse;margin:1rem 0;font-size:.92em}
+ td,th{border:1px solid #ccc;padding:.25rem .5rem;text-align:left}
+ th{background:#f2f2f2}
+ pre{background:#f6f8fa;padding:.7rem .9rem;overflow-x:auto;border-radius:4px;font-size:.88em}
+ pre.out{background:#fff;border-left:3px solid #4a7c9b}
+ code{font-family:ui-monospace,Consolas,monospace}
+ blockquote{margin:1rem 0;padding:.4rem 1rem;border-left:3px solid #b5651d;background:#fdf7f2}
+ .note{background:#eef4f9;border:1px solid #c8d8e4;padding:.7rem 1rem;border-radius:4px}
+</style></head><body>
+<h1>notebook_J2</h1>
+<p class="note">Copie <strong>exécutée</strong> du carnet, pour la relecture : les sorties sont celles
+d'une exécution complète sur les données du cours. Le carnet à importer dans Kaggle reste
+<code>notebook_J2.ipynb</code>, qui part sans sorties. Si un chiffre diffère, c'est cette copie qui a raison :
+elle a tourné.</p>
+<h1>J2 — Ce que la table cache</h1>
+<p><strong>Séance 2.</strong> La séance 1 a produit une table de travail, un modèle et une soumission. Cette
+séance-ci ne retire ni n'ajoute de colonnes par principe : elle cherche ce que la table cache.
+Et elle vous en fera fabriquer une — la vôtre — pour mesurer ce qu'elle vaut. La cible, d'abord —
+quelqu'un l'a produite, avec un protocole et ses erreurs. Puis la colonne qui ne sera plus là le
+jour où le modèle servira. Puis celle qui, elle, sait déjà la réponse.</p>
+<blockquote>
+<p><strong>La règle de la séance :</strong> ce que la table cache ne se voit pas dans une colonne — il se
+<strong>mesure</strong> : un score, un compte, ou une distribution.</p>
+</blockquote>
+<p><strong>Ce que le devoir 1 vous demandera :</strong> trois hypothèses de features (chacune avec ce qui la contredirait) et les
+<strong>jugements chiffrés</strong> : la régression logistique et les arbres sur la même table, la colonne qui
+disparaît en production, celle qui connaît la réponse, et ce qu'il reste du gain interne une fois
+au classement.</p>
+<p><strong>La mise en place ci-dessous n'est pas à réécrire</strong> : elle reprend la chaîne de la séance 1 — les
+données, la table de travail, la référence, le modèle — <strong>extraite, à la construction, d'une source unique</strong> — le carnet J1. Le carnet que vous lisez en
+contient donc une copie : c'est inévitable, il doit pouvoir tourner seul. Ce qui est unique, c'est
+la source — corrigez J1, régénérez, et la copie suit.</p>
+<h2>Mise en place (fournie)</h2>
+<p>Ces cellules sont <strong>extraites de <code>notebook_J1.ipynb</code></strong>, qui reste la source unique de la table
+de travail, de la référence et du modèle. Exécutez-les de haut en bas.</p>
+<p>Les <code>random_state=0</code> que vous verrez sont la <strong>graine du tirage au sort</strong> (expliquée en J1 §5) :
+le même nombre redonne le même découpage, donc la même mesure.</p>
+<h3>Les outils</h3>
+<pre><code># les outils
+# Aucun import en bloc au début : chaque module entre dans le carnet au moment de son premier
+# usage. On voit ainsi à quoi il sert, au lieu de le deviner dans une liste.
+
+# `display` : un tableau s&#x27;affiche proprement dans un carnet, et reste lisible ailleurs.
+# C&#x27;est par `display` qu&#x27;on montre TOUTES les tables de ce carnet — jamais un print de texte.
+try:
+    from IPython.display import display
+except ImportError:
+    def display(x):
+        print(x)
+</code></pre>
+
+<h3>Les données</h3>
+<pre><code>import os
+import pandas as pd
+# où sont les fichiers — on CHERCHE `train.csv`, on ne suppose pas un chemin
+# (Kaggle a déjà déplacé ses points de montage : un chemin recopié se périme, une recherche non)
+def _trouver_dossier(racines):
+    &quot;&quot;&quot;Première racine contenant train.csv — en surface, puis en profondeur.&quot;&quot;&quot;
+    for racine in racines:
+        if not os.path.isdir(racine):
+            continue
+        if os.path.exists(os.path.join(racine, &quot;train.csv&quot;)):
+            return racine
+        for chemin, _, fichiers in os.walk(racine):
+            if &quot;train.csv&quot; in fichiers:
+                return chemin
+    return None
+
+DOSSIER = _trouver_dossier([&quot;/kaggle/input&quot;, &quot;sortie&quot;])
+assert DOSSIER, &quot;train.csv introuvable : les données de la compétition sont-elles montées ?&quot;
+
+print(&quot;le dossier des données trouvé :&quot;, DOSSIER)
+</code></pre>
+<pre class='out'>le dossier des données trouvé : sortie
+</pre>
+<pre><code>train = pd.read_csv(os.path.join(DOSSIER, &quot;train.csv&quot;), low_memory=False)
+test = pd.read_csv(os.path.join(DOSSIER, &quot;test.csv&quot;), low_memory=False)
+
+ID, CIBLE = &quot;ligne_id&quot;, &quot;patient_absent&quot;
+
+print(&quot;les deux tableaux \n&quot;)
+print(&quot;train :&quot;, train.shape, &quot;(lignes, colonnes)&quot;)
+print(&quot;test  :&quot;, test.shape, &quot;(lignes, colonnes)&quot;)
+
+print(&quot;les cinq premières lignes \n&quot;)
+display(train.head())
+</code></pre>
+<pre class='out'>les deux tableaux 
+
+train : (149894, 39) (lignes, colonnes)
+test  : (63721, 38) (lignes, colonnes)
+les cinq premières lignes 
+
+    dossier_id  ligne_id  ... taux_absence_passe patient_absent
+0  DOS-0127912    127913  ...                0.0              1
+1  DOS-0002883      2884  ...                0.0              0
+2  DOS-0098561     98562  ...                0.0              0
+3  DOS-0133156    133157  ...                0.0              0
+4  DOS-0055744     55745  ...                0.0              0
+
+[5 rows x 39 columns]
+</pre>
+<h3>La table de travail</h3>
+<pre><code>A_ECARTER = [ID, &quot;dossier_id&quot;, &quot;patient_id&quot;, &quot;duree_consultation&quot;, &quot;constantes_relevees&quot;,
+             &quot;motif_absence&quot;, &quot;date_prise&quot;, &quot;date_rdv&quot;, &quot;taille_cm&quot;, &quot;date_naissance&quot;,
+             &quot;canal_prise&quot;]
+
+def matrice(cols):
+    &quot;&quot;&quot;La table de travail : colonnes écartées retirées, catégorielles déclarées.&quot;&quot;&quot;
+    X = cols.drop(columns=[c for c in A_ECARTER + [CIBLE] if c in cols.columns]).copy()
+    cat = [c for c in X.columns if not pd.api.types.is_numeric_dtype(X[c])]
+    trop_fin = [c for c in cat if X[c].nunique() &gt; 255]
+    X = X.drop(columns=trop_fin)
+    cat = [c for c in cat if c not in trop_fin]
+    for c in cat:
+        X[c] = X[c].fillna(&quot;&quot;).astype(&quot;category&quot;)
+    return X, cat, trop_fin
+
+X, CAT, TROP_FIN = matrice(train)
+Xt, _, _ = matrice(test)
+
+for c in CAT:
+    Xt[c] = Xt[c].cat.set_categories(X[c].cat.categories)
+
+print(&quot;la table de travail \n&quot;)
+print(&quot;colonnes conservées :&quot;, X.shape[1])
+print(&quot;colonnes écartées (cardinalité trop forte) :&quot;, TROP_FIN)
+print(&quot;colonnes catégorielles :&quot;, CAT)
+</code></pre>
+<pre class='out'>la table de travail 
+
+colonnes conservées : 26
+colonnes écartées (cardinalité trop forte) : [&#x27;tournee_jour&#x27;]
+colonnes catégorielles : [&#x27;clinique&#x27;, &#x27;district&#x27;, &#x27;sexe&#x27;, &#x27;quartier&#x27;, &#x27;assurance&#x27;, &#x27;rappel_envoye&#x27;, &#x27;zone_clinique&#x27;]
+</pre>
+<h3>La cible, et la référence</h3>
+<pre><code>print(&quot;la distribution de la cible \n&quot;)
+repartition = pd.DataFrame({&quot;lignes&quot;: [len(train), int(train[CIBLE].sum())],
+                            &quot;part (%)&quot;: [100.0, round(100 * train[CIBLE].mean(), 2)]},
+                           index=[&quot;toutes&quot;, &quot;absents&quot;])
+display(repartition)
+
+reference = 100 * max(train[CIBLE].mean(), 1 - train[CIBLE].mean())
+print(f&quot;la référence (répondre toujours la classe majoritaire) : {reference:.2f} %&quot;)
+</code></pre>
+<pre class='out'>la distribution de la cible 
+
+         lignes  part (%)
+toutes   149894    100.00
+absents   27357     18.25
+la référence (répondre toujours la classe majoritaire) : 81.75 %
+</pre>
+<pre><code># `y` entre ici ; la référence a déjà été calculée avec la distribution ci-dessus —
+y = train[CIBLE]
+</code></pre>
+
+<h3>Le premier modèle</h3>
+<pre><code># le modèle et le découpage : ils entrent ici
+from sklearn.ensemble import HistGradientBoostingClassifier
+from sklearn.model_selection import train_test_split
+Xtr, Xval, ytr, yval = train_test_split(X, y, test_size=0.2, stratify=y, random_state=0)
+
+modele = HistGradientBoostingClassifier(random_state=0).fit(Xtr, ytr)
+score_interne = 100 * modele.score(Xval, yval)
+
+print(f&quot;exactitude de validation : {score_interne:.2f} %   (référence : {reference:.2f} %)&quot;)
+print(f&quot;arbres effectivement construits : {modele.n_iter_} — le modèle s&#x27;arrête TOUT SEUL dès que sa&quot;)
+print(&quot;  part interne cesse de progresser (c&#x27;est l&#x27;arrêt anticipé), et non au nombre demandé.&quot;)
+</code></pre>
+<pre class='out'>exactitude de validation : 82.51 %   (référence : 81.75 %)
+arbres effectivement construits : 39 — le modèle s&#x27;arrête TOUT SEUL dès que sa
+  part interne cesse de progresser (c&#x27;est l&#x27;arrêt anticipé), et non au nombre demandé.
+</pre>
+<h3>Vos features — la fonction que <code>predict</code> appelle déjà</h3>
+<pre><code># votre feature : elle reçoit la TABLE DE TRAVAIL — identifiants, dates et colonnes post-issue
+# déjà retirés — et la rend enrichie. `predict` l&#x27;appelle sur la table BRUTE, après avoir retiré
+# les mêmes colonnes : le crochet voit donc la même forme des deux côtés, ce qui est la règle.
+def ajouter_features(df):
+    &quot;&quot;&quot;Vos features maison. Appliquée identiquement à l&#x27;entraînement et au test.&quot;&quot;&quot;
+    df = df.copy()
+    # Exemple — remplacez-le par la vôtre :
+    # df[&quot;plus_de_60_ans&quot;] = (df[&quot;age&quot;] &gt; 60).astype(int)
+    return df
+
+# Votre feature entre par `preparer()`, la chaîne unique : on n&#x27;applique RIEN à la main.
+# Après l&#x27;avoir écrite, appelez `remesurer()` (au devoir, dans la cellule prévue) : `X` la
+# reçoit une seule fois, et `predict` l&#x27;applique aussi, de son côté, sur la table brute.
+</code></pre>
+
+<h2>1. La régression logistique, et la table qu'elle exige</h2>
+<p>Un modèle d'arbres <strong>coupe</strong> ; un modèle linéaire calcule : une somme pondérée de ses colonnes,
+comprimée en une probabilité entre 0 et 1, puis tranchée à <strong>0,5</strong>. Les poids sont ce qu'il
+apprend.</p>
+<p>Écrit en formules, cela se fait en deux temps. D'abord une somme <strong>linéaire</strong> des colonnes :</p>
+<p>$$z = \beta_0 + \beta_1 x_1 + \beta_2 x_2 + \dots + \beta_p x_p$$</p>
+<p>puis la <strong>sigmoïde</strong>, qui écrase cette somme entre 0 et 1 :</p>
+<p>$$\sigma(z) = \frac{1}{1 + e^{-z}}, \qquad p = \sigma(z) \in\; ]0, 1[$$</p>
+<p>et la décision, au seuil de 0,5 :</p>
+<p>$$\hat{y} = \begin{cases} 1 &amp; \text{si } p \ge 0{,}5 \ 0 &amp; \text{sinon} \end{cases}$$</p>
+<p>Les coefficients $\beta_j$ sont ce que le modèle apprend — un par colonne. Leur <strong>signe</strong> dit dans
+quel sens la colonne pousse, leur taille dit de combien : c'est ce qui distingue un modèle
+linéaire d'un ensemble d'arbres — l'arbre coupe sans rien dire, le linéaire <strong>pondère</strong> et
+s'explique.</p>
+<p>Cela lui impose deux exigences que l'arbre n'avait pas : il lui faut <strong>des nombres</strong> (une modalité
+n'a pas de valeur numérique — il faut une indicatrice 0/1 par modalité) et <strong>pas de trous</strong> (un
+manquant n'a pas de case dans la somme — il faut le combler).</p>
+<p><strong>Et c'est nous qui payons ce travail.</strong> La cellule qui suit le fait <em>de la façon la plus fruste</em> :
+les trous sont comblés par 0, ce qui est une absurdité pour une mesure — un solde de crédit
+manquant ne vaut pas zéro euro. C'est assumé : <strong>bien combler est un arbitrage</strong> (un arbitrage : il faudrait comparer deux modèles — le mot est défini en J1), il se mesure (la
+séance 3 le fait), et cette séance-ci ne parle pas des trous. Retenez seulement que le linéaire ne
+peut pas s'en passer.</p>
+<pre><code># le modèle linéaire : il entre ici
+from sklearn.linear_model import LogisticRegression
+X_num = pd.get_dummies(X, columns=CAT).fillna(0)
+Xtr_n, Xval_n = X_num.loc[Xtr.index], X_num.loc[Xval.index]
+
+modele_lineaire = LogisticRegression(solver=&quot;newton-cholesky&quot;).fit(Xtr_n, ytr)
+score_lineaire = 100 * modele_lineaire.score(Xval_n, yval)
+</code></pre>
+
+<p><strong>Ce que ça nous dit :</strong> le linéaire et les arbres se tiennent à quelques dixièmes de point — on a
+mesuré les deux plutôt que de le supposer. Mais le linéaire paie pour arriver là : il a fallu
+des indicatrices, et il a fallu combler les trous. Ce qu'il rapporte en échange, c'est la
+<strong>lisibilité</strong> : ses coefficients se lisent un par un — <strong>et pas seulement leur taille, leur
+signe</strong>, qui dit dans quel sens la colonne pousse.</p>
+<p><strong>L'ensemble d'arbres n'est pas muet : il parle autrement.</strong> Ce n'est pas « le linéaire est
+mieux » — c'est « les deux se lisent, mais pas de la même façon ». Un coefficient est <strong>direct</strong> et
+<strong>signé</strong> : une valeur, un sens. L'importance d'une colonne est <strong>un classement, sans signe</strong> — et
+il faut aller la chercher : le boosting du cours n'expose même pas d'importance de colonnes
+(<code>feature_importances_</code> n'existe pas dessus). On l'obtient en réajustant une forêt, ou en mesurant
+la chute du score quand on mélange une colonne (un <strong>test de permutation</strong>) : deux routes plus
+longues, et qui ne disent pas le sens de l'effet. C'est cela, la différence — pas une hiérarchie.</p>
+<pre><code>comparaison = pd.DataFrame({&quot;exactitude (%)&quot;: [round(score_lineaire, 2), round(score_interne, 2)]},
+                           index=[&quot;modèle linéaire&quot;, &quot;arbres&quot;])
+print(&quot;les deux familles, la même table, la même mesure \n&quot;)
+display(comparaison)
+print(f&quot;→ écart : {score_interne - score_lineaire:+.2f} point(s) pour l&#x27;ensemble d&#x27;arbres.&quot;)
+</code></pre>
+<pre class='out'>les deux familles, la même table, la même mesure 
+
+                 exactitude (%)
+modèle linéaire           82.21
+arbres                    82.51
+→ écart : +0.30 point(s) pour l&#x27;ensemble d&#x27;arbres.
+</pre>
+<pre><code># et ce qu&#x27;un linéaire a en plus : ses coefficients, un par colonne de sa table
+co = pd.DataFrame({&quot;coefficient&quot;: modele_lineaire.coef_[0]}, index=X_num.columns)
+co[&quot;|coefficient|&quot;] = co[&quot;coefficient&quot;].abs()
+
+print(f&quot;le linéaire apprend {len(co)} coefficients — un par colonne \n&quot;)
+display(co.sort_values(&quot;|coefficient|&quot;, ascending=False).head(12).drop(columns=&quot;|coefficient|&quot;).round(3))
+print(&quot;→ le SIGNE dit dans quel sens la colonne pousse, la taille dit de combien.&quot;)
+print(&quot;  Les indicatrices de quartier et de clinique dominent : ce sont elles qui portent le plus.&quot;)
+</code></pre>
+<pre class='out'>le linéaire apprend 194 coefficients — un par colonne 
+
+                    coefficient
+taux_absence_passe        1.541
+quartier_Q59             -1.180
+quartier_Q15             -0.916
+quartier_Q71              0.878
+quartier_Q41              0.777
+clinique_C28              0.776
+quartier_Q70             -0.769
+clinique_C49             -0.740
+quartier_Q64              0.718
+quartier_Q55             -0.713
+quartier_Q68              0.699
+quartier_Q75             -0.660
+→ le SIGNE dit dans quel sens la colonne pousse, la taille dit de combien.
+  Les indicatrices de quartier et de clinique dominent : ce sont elles qui portent le plus.
+</pre>
+<h4>Et la phrase qu'on répète sans la montrer : « un arbre seul apprend la table par cœur »</h4>
+<p>La voici, avec ses chiffres. Un arbre <strong>sans limite de profondeur</strong> descend jusqu'à ce que chaque
+feuille ne contienne presque plus qu'un seul cas : il atteint <strong>100 % sur les lignes qu'il a vues</strong> —
+et se trompe d'un quart sur les autres. On le borne (<code>max_depth</code>), et les deux chiffres se
+rapprochent. L'ensemble d'arbres du cours, lui, est déjà borné par construction.</p>
+<pre><code>from sklearn.tree import DecisionTreeClassifier
+
+familles = [(&quot;un arbre seul, sans limite&quot;, DecisionTreeClassifier(random_state=0)),
+            (&quot;le même, borné à 8 niveaux&quot;, DecisionTreeClassifier(random_state=0, max_depth=8)),
+            (&quot;l&#x27;ensemble d&#x27;arbres du cours&quot;, HistGradientBoostingClassifier(random_state=0))]
+
+lignes = []
+for nom, m in familles:
+    m = m.fit(Xtr_n, ytr)
+    lignes.append({&quot;modèle&quot;: nom,
+                   &quot;entraînement (%)&quot;: round(100 * m.score(Xtr_n, ytr), 2),
+                   &quot;validation (%)&quot;: round(100 * m.score(Xval_n, yval), 2)})
+
+diagnostic = pd.DataFrame(lignes)
+diagnostic[&quot;écart (pts)&quot;] = (diagnostic[&quot;entraînement (%)&quot;] - diagnostic[&quot;validation (%)&quot;]).round(2)
+
+print(&quot;trois modèles, deux chiffres chacun : l&#x27;écart dit qui mémorise \n&quot;)
+display(diagnostic)
+print(&quot;→ 100 % à l&#x27;entraînement et 74 % ailleurs n&#x27;est pas un bon modèle : c&#x27;est un modèle qui a&quot;)
+print(&quot;  appris la table par cœur. L&#x27;écart est le diagnostic, et il se lit en une soustraction.&quot;)
+</code></pre>
+<pre class='out'>trois modèles, deux chiffres chacun : l&#x27;écart dit qui mémorise 
+
+                         modèle  entraînement (%)  validation (%)  écart (pts)
+0    un arbre seul, sans limite            100.00           73.74        26.26
+1    le même, borné à 8 niveaux             82.74           82.37         0.37
+2  l&#x27;ensemble d&#x27;arbres du cours             82.77           82.49         0.28
+→ 100 % à l&#x27;entraînement et 74 % ailleurs n&#x27;est pas un bon modèle : c&#x27;est un modèle qui a
+  appris la table par cœur. L&#x27;écart est le diagnostic, et il se lit en une soustraction.
+</pre>
+<h4>Ce que <code>pd.get_dummies</code> fait, et pourquoi il est là</h4>
+<p><code>pd.get_dummies</code> transforme <strong>une colonne catégorielle en autant de colonnes 0/1 qu'elle a de
+modalités</strong>. Une colonne <code>assurance</code> à quatre modalités devient quatre colonnes — <code>assurance_A</code>,
+<code>assurance_B</code>… — chacune valant 1 si la ligne porte cette modalité, 0 sinon. Ces colonnes
+s'appellent des <strong>indicatrices</strong> (<em>dummy variables</em>).</p>
+<p>La raison tient à la formule : la régression logistique <strong>calcule une somme pondérée</strong>, et on ne
+peut pas multiplier un coefficient par la modalité « A ». Avec des indicatrices, chaque modalité
+reçoit son propre coefficient — et ce coefficient se lit : c'est l'effet de cette modalité.</p>
+<p><strong>Le tableau des deux familles</strong>, à garder en tête :</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Ensemble d'arbres</th>
+<th>Régression logistique</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Ce qu'il fait</td>
+<td><strong>coupe</strong> — des seuils</td>
+<td>calcule — une somme pondérée</td>
+</tr>
+<tr>
+<td>Colonnes catégorielles</td>
+<td>acceptées telles quelles</td>
+<td>à convertir en indicatrices</td>
+</tr>
+<tr>
+<td>Trous</td>
+<td>traversés sans broncher</td>
+<td>interdits : il faut les combler</td>
+</tr>
+<tr>
+<td>Mise à l'échelle</td>
+<td>inutile</td>
+<td>souhaitable — <strong>pas fait ici</strong> : c'est un réglage, pas une exigence</td>
+</tr>
+<tr>
+<td>S'explique par</td>
+<td>l'importance de ses colonnes — jamais ses cent arbres un par un</td>
+<td>ses coefficients — signe et taille</td>
+</tr>
+<tr>
+<td>Seul, il…</td>
+<td>un arbre seul apprend la table par cœur ; un ensemble qui s'arrête tout seul, non</td>
+<td>surapprend dès qu'on lui donne trop de colonnes</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>Question →</strong> <code>Devoir_maison_1.ipynb</code>, <strong>question 9 (carnet J2)</strong> — ce que le linéaire coûte, en barres de bruit.</p>
+</blockquote>
+<h2>2. Une feature de votre cru — une seule, des deux côtés</h2>
+<p>C'est le moment où l'on <strong>ajoute</strong> de l'information au lieu d'en retirer. Une feature, c'est une
+colonne qu'on fabrique à partir des colonnes existantes, parce qu'on a une <strong>raison de croire</strong>
+qu'elle dit quelque chose que le modèle ne peut pas voir tout seul.</p>
+<p>Une règle, et elle n'est pas négociable : <strong>la feature s'applique des deux côtés</strong> — à
+l'entraînement et au test. Une transformation appliquée d'un seul côté produit exactement le pire
+des cas : le modèle apprend sur une version des données et prédit sur une autre. Aucune erreur ne
+s'affiche, et le score devient faux.</p>
+<p><strong>Et une seule à la fois.</strong> Si vous en ajoutez trois d'un coup et que le score monte, vous ne
+saurez jamais laquelle a servi — ni si l'une d'elles a nui. Une feature, une mesure, une ligne
+dans le tableau d'essais.</p>
+<p><strong>Où elle s'écrit.</strong> La fonction <code>ajouter_features</code> est dans la mise en place, et elle vient de
+<code>notebook_J1.ipynb</code> — c'est <strong>la même</strong> que celle que <code>predict</code> y appelle. Ce n'est pas un détail :
+c'est la règle des deux côtés appliquée au carnet lui-même. Modifiez-la ici pour mesurer ; pour que
+<code>predict</code> la porte aussi, elle doit être écrite là-bas. Un modèle et son interface qui ne voient
+pas la même table, c'est le bug silencieux que cette séance existe pour rendre visible.</p>
+<h4>La règle, vue deux fois — et la seconde fois est celle qui coûte cher</h4>
+<p><strong>Ce que la cellule qui suit montre.</strong> Une feature d'exemple (la vôtre viendra au devoir) passe par
+la chaîne, donc l'entraînement <strong>et</strong> <code>predict</code> la voient — c'est la règle des deux côtés, dans le
+sens qui marche. Puis la même colonne arrive au modèle avec son <strong>nom</strong> mais un <strong>contenu faux</strong> :
+c'est exactement ce qui se produit quand une transformation n'est appliquée que d'un côté. Regardez
+le score. Et cherchez l'avertissement : <strong>il n'y en a pas.</strong></p>
+<pre><code># LA RÈGLE, VUE DEUX FOIS — et la seconde est celle qui coûte cher.
+#
+# 1. une feature d&#x27;exemple (au devoir, ce sera la vôtre) : elle passe par la chaîne, et `preparer`
+#    l&#x27;applique — donc l&#x27;entraînement ET `predict` la voient, puisque les deux passent par là.
+def exemple_de_feature(df):
+    d = df.copy()
+    d[&quot;delai_long&quot;] = (d[&quot;delai_jours&quot;] &gt;= 8).astype(int)
+    return d
+
+X_exemple = exemple_de_feature(X)
+a, b, c, d = train_test_split(X_exemple, y, test_size=0.2, stratify=y, random_state=0)
+modele_exemple = HistGradientBoostingClassifier(random_state=0).fit(a, c)
+print(f&quot;par la chaîne, la feature est là des deux côtés : {100 * modele_exemple.score(b, d):.2f} %&quot;)
+
+# 2. CE QUI ARRIVE QUAND LA TRANSFORMATION N&#x27;EST PAS LA MÊME DES DEUX CÔTÉS.
+#    La colonne garde son NOM, son contenu est faux : c&#x27;est la forme exacte du défaut.
+faux = b.copy()
+faux[&quot;delai_jours&quot;] = 0                       # même nom, autre contenu
+print(f&quot;la même colonne, arrivée fausse                 : {100 * modele_exemple.score(faux, d):.2f} %&quot;)
+print(&quot;→ aucun avertissement. Pour le modèle, c&#x27;est la même colonne.&quot;)
+
+# 3. LE CAS BRUYANT, POUR COMPARER : une colonne qui MANQUE, elle, se fait remarquer.
+try:
+    modele_exemple.predict(b.drop(columns=[&quot;delai_jours&quot;]))
+except Exception as e:
+    print(f&quot;si la colonne manque, au contraire              : {type(e).__name__} — {e}&quot;)
+</code></pre>
+<pre class='out'>par la chaîne, la feature est là des deux côtés : 82.51 %
+la même colonne, arrivée fausse                 : 81.76 %
+→ aucun avertissement. Pour le modèle, c&#x27;est la même colonne.
+si la colonne manque, au contraire              : ValueError — columns are missing: {&#x27;delai_jours&#x27;}
+</pre>
+<blockquote>
+<p><strong>Question →</strong> <code>Devoir_maison_1.ipynb</code>, <strong>question 10 (carnet J2)</strong> — votre feature, appliquée des deux côtés.</p>
+</blockquote>
+<h2>3. La cible est un objet suspect</h2>
+<p>Une cible n'est pas une vérité tombée du ciel : <strong>quelqu'un l'a produite</strong>, à un moment, avec un
+protocole. Tant qu'on ne pose pas la question, on entraîne un modèle à reproduire le travail de
+quelqu'un d'autre — erreurs comprises.
+En fraude, c'est le cas d'école : l'étiquette « fraude » vient d'un impayé, qui arrive trente à
+quatre-vingt-dix jours après la transaction. Les lignes récentes sont donc étiquetées « honnête »
+— non parce qu'elles le sont, mais parce que l'impayé n'est pas encore arrivé.
+Deux guichetiers, deux définitions : l'un coche « absent » pour un rendez-vous annulé, l'autre
+non. Une partie des lignes est étiquetée par <strong>habitude</strong> — et le modèle apprend le désaccord.
+La question n'est donc pas « la cible est-elle juste ? » mais <strong>« qui l'a produite, quand, et avec
+quelle règle ? »</strong>.</p>
+<h4>La cible est datée : regardez-la mois par mois</h4>
+<p>Une cible est produite <strong>à un moment</strong>. Si le taux change selon la période, ou si le dernier mois ne
+porte que quelques milliers de lignes, alors « 18 % d'absents » n'est pas une vérité : c'est une
+moyenne sur un intervalle, et elle dépend de ce qui a été collecté et de quand.</p>
+<pre><code># le même taux, mois par mois — et le nombre de lignes qui le portent
+mois = train.assign(mois=pd.to_datetime(train[&quot;date_rdv&quot;]).dt.to_period(&quot;M&quot;).astype(str))
+par_mois = mois.groupby(&quot;mois&quot;, observed=True)[CIBLE].agg(lignes=&quot;size&quot;, absents=&quot;sum&quot;)
+par_mois[&quot;taux (%)&quot;] = (100 * par_mois[&quot;absents&quot;] / par_mois[&quot;lignes&quot;]).round(2)
+
+print(&quot;le taux d&#x27;absence, mois de rendez-vous par mois de rendez-vous \n&quot;)
+display(par_mois.tail(10))
+print(&quot;→ le taux dérive de plusieurs points d&#x27;un mois à l&#x27;autre, et le dernier mois ne porte que&quot;)
+print(&quot;  quelques milliers de lignes. Avant de juger un taux, regardez COMBIEN de lignes le portent,&quot;)
+print(&quot;  et QUAND elles ont été collectées : c&#x27;est la première question à poser sur une cible.&quot;)
+</code></pre>
+<pre class='out'>le taux d&#x27;absence, mois de rendez-vous par mois de rendez-vous 
+
+         lignes  absents  taux (%)
+mois                              
+2025-02    3893      694     17.83
+2025-03    4967      877     17.66
+2025-04    5485     1012     18.45
+2025-05    6092     1140     18.71
+2025-06    5469     1017     18.60
+2025-07    5457     1037     19.00
+2025-08    5007      966     19.29
+2025-09    5078      983     19.36
+2025-10    5164     1038     20.10
+2025-11    2792      497     17.80
+→ le taux dérive de plusieurs points d&#x27;un mois à l&#x27;autre, et le dernier mois ne porte que
+  quelques milliers de lignes. Avant de juger un taux, regardez COMBIEN de lignes le portent,
+  et QUAND elles ont été collectées : c&#x27;est la première question à poser sur une cible.
+</pre>
+<h2>4. La colonne qui disparaît en production</h2>
+<p>L'exploration (<strong>2.2</strong>) a montré une colonne pleine dans l'historique et vide dans le test : le
+système qui l'alimentait a cessé de le faire. Le modèle apprend alors avec une information qu'il
+n'aura plus le jour où il sert — et rien ne l'avertit.</p>
+<p>Ce qui la trahit est un écart, et il se chiffre :</p>
+<p>$$\Delta_c = \text{taux de trous}<em>{test}(c) - \text{taux de trous}</em>{train}(c)$$</p>
+<p>Un $\Delta_c$ proche de $+1$ veut dire que la colonne <strong>disparaît</strong> du côté où le modèle sert.
+Ce que ça coûte, on ne le suppose pas : <strong>on le mesure</strong>.</p>
+<pre><code>def mesurer(avec_colonne):
+    &quot;&quot;&quot;La même mesure, avec ou sans la colonne que le test ne portera plus.&quot;&quot;&quot;
+    Xa = X.copy()
+    if avec_colonne:
+        Xa[&quot;canal_prise&quot;] = train.loc[Xa.index, &quot;canal_prise&quot;].fillna(&quot;&quot;).astype(&quot;category&quot;)
+    a, b, c, d = train_test_split(Xa, y, test_size=0.2, stratify=y, random_state=0)
+    return 100 * HistGradientBoostingClassifier(random_state=0).fit(a, c).score(b, d)
+</code></pre>
+
+<p><strong>Le geste :</strong> le même modèle, deux fois, à une colonne près. La seule chose qui change est celle
+qu'on ajoute — l'écart entre les deux lignes est donc <strong>entièrement</strong> attribuable à cette colonne.</p>
+<pre><code>avec, sans = mesurer(True), mesurer(False)
+comparaison = pd.DataFrame({&quot;exactitude interne (%)&quot;: [round(avec, 2), round(sans, 2)]},
+                           index=[&quot;colonne gardée&quot;, &quot;colonne retirée&quot;])
+print(&quot;la même mesure, à une colonne près \n&quot;)
+display(comparaison)
+print(f&quot;→ gain interne de la colonne : {avec - sans:+.2f} point(s).&quot;)
+print(&quot;Ce que cette colonne devient côté test, vous le mesurez vous-même : question 11.&quot;)
+</code></pre>
+<pre class='out'>la même mesure, à une colonne près 
+
+                 exactitude interne (%)
+colonne gardée                    85.48
+colonne retirée                   82.51
+→ gain interne de la colonne : +2.97 point(s).
+Ce que cette colonne devient côté test, vous le mesurez vous-même : question 11.
+</pre>
+<blockquote>
+<p><strong>Question →</strong> <code>Devoir_maison_1.ipynb</code>, <strong>question 11 (carnet J2)</strong> — la colonne qui disparaît : la trouver, puis mesurer ce qu'elle coûte.</p>
+</blockquote>
+<h2>5. Les colonnes connues après l'issue</h2>
+<p>Certaines colonnes ne sont renseignées qu'<strong>après</strong> le rendez-vous : la durée de la consultation,
+le motif d'absence. Elles « savent » la réponse — et elles ne disparaissent pas du test : elles y
+sont, vides, ou remplies d'une valeur qui n'a de sens qu'une fois l'issue connue.</p>
+<p>Le modèle, lui, ne fait pas la différence : il voit une colonne, il s'en sert, et il apprend une
+règle qui ne sera jamais disponible au moment de décider.</p>
+<p>On le démontre en les réintroduisant dans la table — et c'est ici qu'arrive la phrase à retenir :
+<strong>une exactitude de 99 % obtenue en cinq minutes sur une cible à 18 % n'est pas un exploit : c'est
+presque toujours la donnée qui portait la réponse</strong>, pas le modèle qui aurait du talent.</p>
+<p><strong>Il y a deux signes, et ils ne se ressemblent pas.</strong></p>
+<p>Le premier est <strong>le vide</strong> : une colonne remplie <em>uniquement</em> quand l'issue est connue.
+<code>motif_absence</code> est exactement cela — elle porte un motif pour 100 % des absents et <strong>0 %</strong> des
+présents. Le fait qu'elle soit vide <em>suffit</em> à prédire la cible : il n'y a même pas besoin de lire
+sa valeur.</p>
+<p>Le second est <strong>la valeur</strong> : une colonne remplie des deux côtés peut porter la réponse dans ce
+qu'elle contient, et non dans ce qui lui manque. <code>duree_consultation</code> est remplie à 100 %
+chez les absents comme chez les présents — le taux de remplissage ne la trahit donc pas du tout.
+Ce qui la trahit, c'est une valeur qu'elle prend dans <strong>un seul</strong> des deux groupes, et qu'il faut
+aller chercher : c'est exactement l'objet de la question 12.</p>
+<p><strong>La leçon :</strong> chercher une fuite par le taux de remplissage ne trouve que la première famille. La
+seconde se trouve en <strong>comparant les distributions</strong>, pas les comptes.</p>
+<pre><code>X_post = X.copy()
+X_post[&quot;duree_consultation&quot;] = train.loc[X_post.index, &quot;duree_consultation&quot;]
+a, b, c, d = train_test_split(X_post, y, test_size=0.2, stratify=y, random_state=0)
+score_post = 100 * HistGradientBoostingClassifier(random_state=0).fit(a, c).score(b, d)
+
+comparaison = pd.DataFrame({&quot;exactitude interne (%)&quot;: [round(score_interne, 2), round(score_post, 2)]},
+                           index=[&quot;table de travail&quot;, &quot;avec une colonne d&#x27;après le rendez-vous&quot;])
+display(comparaison)
+</code></pre>
+<pre class='out'>                                         exactitude interne (%)
+table de travail                                          82.51
+avec une colonne d&#x27;après le rendez-vous                   99.88
+</pre>
+<pre><code># une colonne dont le vide trahit la cible : la chercher, colonne par colonne
+# (les colonnes de TEXTE comptent — motif_absence en est une, et c&#x27;est la plus parlante)
+soupcons = []
+for c in train.columns:
+    if c in (ID, CIBLE):
+        continue
+    if train[c].isna().any():
+        avec = train.loc[train[CIBLE] == 1, c].isna().mean()
+        sans = train.loc[train[CIBLE] == 0, c].isna().mean()
+        if abs(avec - sans) &gt; 0.5:
+            soupcons.append({&quot;colonne&quot;: c, &quot;% vide chez les absents&quot;: round(100 * avec, 1),
+                             &quot;% vide chez les présents&quot;: round(100 * sans, 1)})
+
+print(&quot;les colonnes dont le vide dit quelque chose de la cible \n&quot;)
+display(pd.DataFrame(soupcons) if soupcons
+        else &quot;aucune colonne ne se distingue par ses trous&quot;)
+</code></pre>
+<pre class='out'>les colonnes dont le vide dit quelque chose de la cible 
+
+         colonne  % vide chez les absents  % vide chez les présents
+0  motif_absence                      0.0                     100.0
+</pre>
+<p><strong>Ce que ça nous dit :</strong> une colonne ressort, et c'est une colonne de texte — la version de cette
+boucle qui ignorait le texte n'aurait jamais pu la voir. C'est la première famille : le vide qui
+<em>suffit</em>. <code>duree_consultation</code>, elle, n'apparaît pas dans ce tableau, et pourtant elle fuit :
+cherchez pourquoi en comparant ses <strong>valeurs</strong>, chez les absents puis chez les présents (question 12).</p>
+<blockquote>
+<p><strong>Question →</strong> <code>Devoir_maison_1.ipynb</code>, <strong>question 12 (carnet J2)</strong> — les deux signes (1/2) : la boucle de remplissage par groupe, que l'outil <code>suspects</code> généralise.</p>
+</blockquote>
+<p><strong>Le second signe, et il ne se cherche pas comme le premier.</strong> Une colonne peut être remplie
+<strong>partout</strong> et connaître quand même la réponse : c'est sa <strong>valeur</strong> qui parle, pas son trou. La
+cellule qui suit le montre sur une colonne nommée pour l'exemple — au devoir, c'est à vous de la
+trouver, et la méthode pour y arriver est la même que celle du premier signe, appliquée aux valeurs
+au lieu des vides.</p>
+<pre><code># le second signe : la colonne ne porte AUCUN trou — c&#x27;est sa valeur qui parle
+colonne2 = &quot;duree_consultation&quot;
+
+print(f&quot;`{colonne2}` est remplie pour {100 * train[colonne2].notna().mean():.1f} % des lignes :&quot;)
+print(&quot;son remplissage ne la trahit donc pas.\n&quot;)
+display(train.groupby(CIBLE)[colonne2].agg(lignes=&quot;size&quot;, mediane=&quot;median&quot;, minimum=&quot;min&quot;, maximum=&quot;max&quot;))
+print(&quot;→ chez un groupe, la colonne porte une seule valeur, et cette valeur n&#x27;a rien d&#x27;une durée.&quot;)
+print(&quot;  Deux signes, deux façons de chercher : le VIDE suffit à prédire, et la VALEUR aussi.&quot;)
+</code></pre>
+<pre class='out'>`duree_consultation` est remplie pour 100.0 % des lignes :
+son remplissage ne la trahit donc pas.
+
+                lignes  mediane  minimum  maximum
+patient_absent                                   
+0               122537     18.0      -15       53
+1                27357     -1.0       -1       -1
+→ chez un groupe, la colonne porte une seule valeur, et cette valeur n&#x27;a rien d&#x27;une durée.
+  Deux signes, deux façons de chercher : le VIDE suffit à prédire, et la VALEUR aussi.
+</pre>
+<blockquote>
+<p><strong>Question →</strong> <code>Devoir_maison_1.ipynb</code>, <strong>question 12 (carnet J2)</strong> — les deux signes (2/2) : la seconde ne se trahit pas par son remplissage — cherchez par ses valeurs.</p>
+</blockquote>
+<h2>6. La liste de contrôle — à emporter</h2>
+<p>Tout ce qui précède est une <strong>méthode</strong>, pas une collection de pièges. La voici, en une page, à
+relire avant n'importe quel projet — et à recopier dans votre note technique.</p>
+<p><strong>Ce qu'on regarde toujours, dans cet ordre</strong> (séance 1, section 2) :</p>
+<ol>
+<li><strong>les types</strong> — une mesure rangée en texte a perdu sa grandeur ;</li>
+<li>les bornes — la question n'est pas « est-ce loin ? » mais « est-ce possible ? » ;</li>
+<li>les trous, colonne par colonne — un taux, jamais « il y a des manquants » ;</li>
+<li>le même trou des deux côtés — un écart entre historique et test est un changement de collecte ;</li>
+<li>la cardinalité — une valeur = une colonne morte ; une par ligne = un identifiant ;</li>
+<li>la cible — sa répartition, puis par groupe, et <strong>jamais sur un groupe de moins de 500 lignes</strong>.</li>
+</ol>
+<p><strong>Pourquoi une colonne s'écarte</strong> — les quatre familles (séance 1, section 3) : les identifiants,
+qui désignent une ligne au lieu de la décrire ; les dates brutes, dont la grandeur n'a pas de sens
+numérique ; les mesures rangées en texte ; les colonnes qui disparaissent en production,
+remplies ici et vides là-bas. Et, à part, les <strong>colonnes remplies après l'issue</strong> — elles <em>savent</em> la
+réponse.</p>
+<p><strong>Les deux signes d'une fuite</strong> (séance 2, section 5) : le vide qui suffit à prédire — une
+colonne remplie uniquement quand l'issue est connue ; et la valeur qui ne vit que dans un des deux
+groupes — le taux de remplissage ne la trahit pas, il faut comparer ce qu'elle <strong>contient</strong>.</p>
+<p><strong>Le piège qui n'a pas de colonne à lui :</strong> une colonne peut être parfaitement honnête et avoir l'air
+d'un signal. Le rappel envoyé en est l'exemple : l'absence est plus fréquente avec un rappel. Ce
+n'est pas le rappel qui fait manquer le rendez-vous — c'est le délai : on envoie un rappel quand
+le rendez-vous est loin, et un rendez-vous lointain s'oublie davantage. La variable qui explique les
+deux s'appelle un facteur de confusion. On ne le devine pas, on le <strong>fixe</strong> : comparer à délai
+égal. Si l'écart survit, il y a peut-être un effet ; s'il disparaît, on avait mesuré le délai.</p>
+<blockquote>
+<p><strong>Question →</strong> <code>Devoir_maison_1.ipynb</code>, <strong>question 13 (carnet J2)</strong> — le rappel : cause, ou autre chose ? À délai égal.</p>
+</blockquote>
+<blockquote>
+<p><strong>Question →</strong> <code>Devoir_maison_1.ipynb</code>, <strong>questions 14 et 15 (carnet J2)</strong> — le rapport final, puis la méthode sur une autre table.</p>
+</blockquote>
+</body></html>

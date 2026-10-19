@@ -1,0 +1,1086 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8">
+<title>notebook_J4 — exécuté</title>
+<style>
+ body{max-width:52rem;margin:2rem auto;padding:0 1rem;line-height:1.55;
+       font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#1b1b1b}
+ h1,h2,h3,h4{line-height:1.25}
+ table{border-collapse:collapse;margin:1rem 0;font-size:.92em}
+ td,th{border:1px solid #ccc;padding:.25rem .5rem;text-align:left}
+ th{background:#f2f2f2}
+ pre{background:#f6f8fa;padding:.7rem .9rem;overflow-x:auto;border-radius:4px;font-size:.88em}
+ pre.out{background:#fff;border-left:3px solid #4a7c9b}
+ code{font-family:ui-monospace,Consolas,monospace}
+ blockquote{margin:1rem 0;padding:.4rem 1rem;border-left:3px solid #b5651d;background:#fdf7f2}
+ .note{background:#eef4f9;border:1px solid #c8d8e4;padding:.7rem 1rem;border-radius:4px}
+</style></head><body>
+<h1>notebook_J4</h1>
+<p class="note">Copie <strong>exécutée</strong> du carnet, pour la relecture : les sorties sont celles
+d'une exécution complète sur les données du cours. Le carnet à importer dans Kaggle reste
+<code>notebook_J4.ipynb</code>, qui part sans sorties. Si un chiffre diffère, c'est cette copie qui a raison :
+elle a tourné.</p>
+<h1>J4 — La mesure, et la révélation</h1>
+<p><strong>Séance 4.</strong> Un modèle ne se juge pas sur un chiffre. Il se juge sur <strong>une décision</strong> : qui
+alerte-t-on, et que coûte une erreur ? Aujourd’hui, on descend du score jusqu’au coût. On regarde
+aussi ce que le classement devient quand on le mesure sur ce qui compte.</p>
+<blockquote>
+<p><strong>La règle :</strong> une métrique n’est pas vraie ou fausse, elle est <strong>adaptée ou non</strong> à la décision
+qu’elle doit éclairer. Choisir la métrique, c’est déjà décider.</p>
+</blockquote>
+<p><strong>Le fil du carnet.</strong> Trois couches, dans cet ordre : la <strong>perte</strong>, ce que le modèle optimise
+pendant l’apprentissage ; la <strong>métrique</strong>, ce que le rapport affiche ; le <strong>coût</strong>, ce que la
+décision paie sur le terrain. On part de la métrique, on remonte à la perte, on finit par
+le coût. Chaque section dit à quelle couche elle appartient.</p>
+<p><strong>Ce que le devoir 2 vous demandera :</strong> vos six métriques recalculées depuis <strong>votre</strong> matrice.
+La courbe du coût et votre seuil. L’écart entre la métrique affichée et le coût réel. Et le
+tableau « quand ne pas faire de ML ».</p>
+<p><strong>La table de travail n’est pas reconstruite ici</strong> : la mise en place est <strong>extraite</strong> de
+<code>notebook_J1.ipynb</code> et de <code>notebook_J3.ipynb</code>, qui restent les sources uniques.</p>
+<h2>Mise en place (fournie)</h2>
+<p>Ces cellules sont <strong>extraites</strong> des carnets précédents. Exécutez-les de haut en bas, sans rien y
+modifier. Elles apportent les données, la table de travail, la référence, le découpage et le
+modèle. Elles apportent aussi les baselines — dont la <strong>barre de bruit</strong> que la séance 3 a
+posée.</p>
+<p>Les <code>random_state=0</code> que vous verrez sont la <strong>graine du tirage au sort</strong> (expliquée en J1 §5).
+Le même nombre redonne le même découpage, donc la même mesure.</p>
+<p><strong>Deux mots avant de commencer</strong>, parce que tout le carnet en dépend. Le <strong>positif</strong> est
+<strong>l’absence du patient</strong> : c’est la classe rare. Et <strong>alerter</strong>, c’est <strong>annoncer une absence</strong>.</p>
+<p><strong>Ce que chaque cas déclenche, concrètement :</strong></p>
+<ul>
+<li>une <strong>alerte juste</strong> (absence annoncée, patient bien absent) libère le créneau : il peut être
+  réattribué à quelqu’un qui attend ;</li>
+<li>une <strong>fausse alerte</strong> (absence annoncée, patient venu) bloque le créneau pour rien et coûte
+  <strong>25 unités de coût (u.)</strong> ;</li>
+<li>une <strong>absence manquée</strong> (patient absent, rien d’annoncé) laisse le créneau vide : <strong>100 u.</strong></li>
+</ul>
+<p>Ces deux montants sont <strong>fixés par l’énoncé</strong>. Dans un vrai projet, la direction
+de la clinique les donnerait — et ce carnet ne les discute pas, il les utilise.</p>
+<pre><code># le fil du carnet, en une image — trois couches, du réglage à la facture
+import matplotlib.pyplot as plt
+
+fig, ax = plt.subplots(figsize=(9.6, 2.0))
+ax.axis(&#x27;off&#x27;)
+niveaux = [(&#x27;1 · la perte&#x27;, &#x27;ce que le modèle optimise\npendant l’apprentissage&#x27;, &#x27;#2b6cb0&#x27;),
+           (&#x27;2 · la métrique&#x27;, &#x27;ce que le rapport\naffiche&#x27;, &#x27;#4a5568&#x27;),
+           (&#x27;3 · le coût&#x27;, &#x27;ce que la décision\npaie sur le terrain&#x27;, &#x27;#b5651d&#x27;)]
+for i, (titre, texte, couleur) in enumerate(niveaux):
+    x = 0.04 + i * 0.34
+    ax.text(x, 0.50, titre + &#x27;\n&#x27; + texte, ha=&#x27;left&#x27;, va=&#x27;center&#x27;, fontsize=11,
+            color=&#x27;white&#x27;, bbox=dict(boxstyle=&#x27;round,pad=0.6&#x27;, facecolor=couleur, edgecolor=&#x27;none&#x27;))
+    if i &lt; 2:
+        ax.annotate(&#x27;&#x27;, xy=(x + 0.315, 0.50), xytext=(x + 0.245, 0.50),
+                    arrowprops=dict(arrowstyle=&#x27;-&gt;&#x27;, color=&#x27;#2d3748&#x27;, lw=1.5))
+plt.tight_layout()
+plt.show()
+</code></pre>
+
+<h3>Les outils</h3>
+<pre><code># les outils
+# Aucun import en bloc au début : chaque module entre dans le carnet au moment de son premier
+# usage. On voit ainsi à quoi il sert, au lieu de le deviner dans une liste.
+
+# `display` : un tableau s&#x27;affiche proprement dans un carnet, et reste lisible ailleurs.
+# C&#x27;est par `display` qu&#x27;on montre TOUTES les tables de ce carnet — jamais un print de texte.
+try:
+    from IPython.display import display
+except ImportError:
+    def display(x):
+        print(x)
+</code></pre>
+
+<h3>Les données</h3>
+<pre><code>import os
+import pandas as pd
+# où sont les fichiers — on CHERCHE `train.csv`, on ne suppose pas un chemin
+# (Kaggle a déjà déplacé ses points de montage : un chemin recopié se périme, une recherche non)
+def _trouver_dossier(racines):
+    &quot;&quot;&quot;Première racine contenant train.csv — en surface, puis en profondeur.&quot;&quot;&quot;
+    for racine in racines:
+        if not os.path.isdir(racine):
+            continue
+        if os.path.exists(os.path.join(racine, &quot;train.csv&quot;)):
+            return racine
+        for chemin, _, fichiers in os.walk(racine):
+            if &quot;train.csv&quot; in fichiers:
+                return chemin
+    return None
+
+DOSSIER = _trouver_dossier([&quot;/kaggle/input&quot;, &quot;sortie&quot;])
+assert DOSSIER, &quot;train.csv introuvable : les données de la compétition sont-elles montées ?&quot;
+
+print(&quot;le dossier des données trouvé :&quot;, DOSSIER)
+</code></pre>
+
+<pre><code>train = pd.read_csv(os.path.join(DOSSIER, &quot;train.csv&quot;), low_memory=False)
+test = pd.read_csv(os.path.join(DOSSIER, &quot;test.csv&quot;), low_memory=False)
+
+ID, CIBLE = &quot;ligne_id&quot;, &quot;patient_absent&quot;
+
+print(&quot;les deux tableaux \n&quot;)
+print(&quot;train :&quot;, train.shape, &quot;(lignes, colonnes)&quot;)
+print(&quot;test  :&quot;, test.shape, &quot;(lignes, colonnes)&quot;)
+
+print(&quot;les cinq premières lignes \n&quot;)
+display(train.head())
+</code></pre>
+
+<h3>La table de travail</h3>
+<pre><code>A_ECARTER = [ID, &quot;dossier_id&quot;, &quot;patient_id&quot;, &quot;duree_consultation&quot;, &quot;constantes_relevees&quot;,
+             &quot;motif_absence&quot;, &quot;date_prise&quot;, &quot;date_rdv&quot;, &quot;taille_cm&quot;, &quot;date_naissance&quot;,
+             &quot;canal_prise&quot;]
+
+def matrice(cols):
+    &quot;&quot;&quot;La table de travail : colonnes écartées retirées, catégorielles déclarées.&quot;&quot;&quot;
+    X = cols.drop(columns=[c for c in A_ECARTER + [CIBLE] if c in cols.columns]).copy()
+    cat = [c for c in X.columns if not pd.api.types.is_numeric_dtype(X[c])]
+    trop_fin = [c for c in cat if X[c].nunique() &gt; 255]
+    X = X.drop(columns=trop_fin)
+    cat = [c for c in cat if c not in trop_fin]
+    for c in cat:
+        X[c] = X[c].fillna(&quot;&quot;).astype(&quot;category&quot;)
+    return X, cat, trop_fin
+
+X, CAT, TROP_FIN = matrice(train)
+Xt, _, _ = matrice(test)
+
+for c in CAT:
+    Xt[c] = Xt[c].cat.set_categories(X[c].cat.categories)
+
+print(&quot;la table de travail \n&quot;)
+print(&quot;colonnes conservées :&quot;, X.shape[1])
+print(&quot;colonnes écartées (cardinalité trop forte) :&quot;, TROP_FIN)
+print(&quot;colonnes catégorielles :&quot;, CAT)
+</code></pre>
+
+<h3>La cible, et la référence</h3>
+<pre><code>print(&quot;la distribution de la cible \n&quot;)
+repartition = pd.DataFrame({&quot;lignes&quot;: [len(train), int(train[CIBLE].sum())],
+                            &quot;part (%)&quot;: [100.0, round(100 * train[CIBLE].mean(), 2)]},
+                           index=[&quot;toutes&quot;, &quot;absents&quot;])
+display(repartition)
+
+reference = 100 * max(train[CIBLE].mean(), 1 - train[CIBLE].mean())
+print(f&quot;la référence (répondre toujours la classe majoritaire) : {reference:.2f} %&quot;)
+</code></pre>
+
+<pre><code># `y` entre ici ; la référence a déjà été calculée avec la distribution ci-dessus —
+y = train[CIBLE]
+</code></pre>
+
+<h3>Le découpage, le modèle, et les baselines</h3>
+<pre><code># les baselines, sur le même jeu de validation — et la barre qui décide
+from sklearn.ensemble import HistGradientBoostingClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import train_test_split
+
+Xtr, Xval, ytr, yval = train_test_split(X, y, test_size=0.2, stratify=y, random_state=0)
+
+# 1) la réponse constante : le concurrent le plus bête, et le plus dur à battre
+constante = 100 * max(yval.mean(), 1 - yval.mean())
+
+# 2) la règle du délai : « j&#x27;annonce une absence si le délai dépasse N jours ».
+#    N se choisit sur les lignes d&#x27;apprentissage, pas sur celles de contrôle.
+delai_max = int(Xtr[&#x27;delai_jours&#x27;].max())
+taux_par_seuil = {s: float(((Xtr[&#x27;delai_jours&#x27;] &gt; s).astype(int) == ytr).mean())
+                  for s in (0, 1, 3, 7, 14, 30) if s &lt; delai_max}
+seuil_appris = max(taux_par_seuil, key=taux_par_seuil.get)
+regle = (Xval[&#x27;delai_jours&#x27;] &gt; seuil_appris).astype(int)
+
+# et la règle qui ne dirait jamais rien ? c&#x27;est la réponse constante, au point près
+silence = (Xval[&#x27;delai_jours&#x27;] &gt; delai_max).astype(int)
+
+# 3) la famille linéaire : elle a besoin de nombres, on lui en prépare — la recette des
+#    séances précédentes (newton-cholesky : le solveur qui converge sur cette table)
+X_n = pd.get_dummies(X, columns=CAT).fillna(0)
+Xtr_n, Xval_n = X_n.loc[Xtr.index], X_n.loc[Xval.index]
+lineaire = LogisticRegression(solver=&#x27;newton-cholesky&#x27;).fit(Xtr_n, ytr)
+
+# 4) le modèle du cours, celui des séances précédentes
+modele = HistGradientBoostingClassifier(random_state=0).fit(Xtr, ytr)
+
+# la barre : l&#x27;erreur-type de l&#x27;exactitude sur CE jeu de validation
+barre = 100 * ((constante / 100) * (1 - constante / 100) / len(yval)) ** 0.5
+
+baselines = pd.DataFrame([
+    {&#x27;baseline&#x27;: &#x27;toujours présent&#x27;,
+     &#x27;exactitude (%)&#x27;: round(constante, 2)},
+    {&#x27;baseline&#x27;: f&#x27;règle du délai — absent si le délai dépasse {seuil_appris} j&#x27;,
+     &#x27;exactitude (%)&#x27;: round(100 * (regle == yval).mean(), 2)},
+    {&#x27;baseline&#x27;: &#x27;absent si ce patient a déjà manqué un rendez-vous&#x27;,
+     &#x27;exactitude (%)&#x27;: round(100 * ((Xval[&#x27;taux_absence_passe&#x27;] &gt; 0).astype(int) == yval).mean(), 2)},
+    {&#x27;baseline&#x27;: &#x27;la famille linéaire&#x27;,
+     &#x27;exactitude (%)&#x27;: round(100 * lineaire.score(Xval_n, yval), 2)},
+    {&#x27;baseline&#x27;: &#x27;le modèle du cours&#x27;,
+     &#x27;exactitude (%)&#x27;: round(100 * modele.score(Xval, yval), 2)},
+])
+display(baselines)
+
+ecart = 100 * modele.score(Xval, yval) - constante
+print(f&#x27;→ le modèle dépasse la réponse constante de {ecart:+.2f} point,&#x27;)
+print(f&#x27;  soit {ecart / barre:.1f} erreurs-types de ce jeu de validation ({barre:.2f} point).&#x27;)
+print(f&#x27;  la règle du délai, elle, fait {100 * (regle == yval).mean():.2f} % : elle alerte sur&#x27;)
+print(f&#x27;  {int(regle.sum())} lignes et perd contre la réponse constante.&#x27;)
+print(f&#x27;  et la règle qui ne dirait jamais rien ferait {100 * (silence == yval).mean():.2f} % —&#x27;)
+print(&#x27;  exactement la réponse constante. Une règle en place se mesure avant d’être opposée&#x27;)
+print(&#x27;  à un modèle ; ce que cela dit d’une exactitude reste ouvert.&#x27;)
+</code></pre>
+
+<h3>Le rituel : annoncer avant de mesurer</h3>
+<pre><code># l&#x27;horloge entre ici : c&#x27;est elle qui rend une prédiction vérifiable
+from datetime import datetime
+
+ESSAIS = []
+PREDICTIONS = []
+
+def prevoir(essai, attendu, raison):
+    &quot;&quot;&quot;Écrit ce que vous attendez AVANT de mesurer — horodaté.
+       `noter(...)` refuse ensuite tout essai sans prédiction : l&#x27;ordre n&#x27;est pas demandé, il est
+       appliqué. Ce que cette fonction garantit, exactement : une prédiction EXISTAIT avant que la
+       ligne du tableau soit écrite. Elle ne date pas la mesure — le score lui arrive déjà calculé.
+       Pour la garantie complète, mesurez dans `essai(...)`, qui date la mesure lui-même.&quot;&quot;&quot;
+    PREDICTIONS[:] = [p for p in PREDICTIONS if p[&quot;essai&quot;] != essai]
+    PREDICTIONS.append({&quot;essai&quot;: essai, &quot;attendu&quot;: attendu, &quot;raison&quot;: raison,
+                        &quot;écrit à&quot;: datetime.now().strftime(&quot;%H:%M:%S&quot;)})
+    display(pd.DataFrame(PREDICTIONS))
+
+def essai(nom, mesure, changement=&quot;&quot;, attendu=&quot;&quot;):
+    &quot;&quot;&quot;Le chemin STRICT : la mesure est prise ICI, donc l&#x27;ordre (prédiction puis mesure) est prouvé.
+       `mesure` est une fonction sans argument qui rend le score, par exemple
+       `lambda: modele.score(Xval, yval)`. Refuse de mesurer sans prédiction.&quot;&quot;&quot;
+    prevu = [p for p in PREDICTIONS if p[&quot;essai&quot;] == nom]
+    if not prevu:
+        print(f&quot;refusé : aucune prédiction pour « {nom} ». Écrivez prevoir(...) d&#x27;abord.&quot;)
+        return None
+    score = 100 * mesure()
+    noter(nom, changement or &quot;voir la question&quot;, attendu or prevu[0][&quot;attendu&quot;], score)
+    return score
+
+def noter(hypothese, changement, attendu, score):
+    &quot;&quot;&quot;Ajoute une ligne au tableau. `attendu` : un signe et une raison, jamais une valeur.
+       Ré-exécuter une cellule REMPLACE la ligne de même `hypothèse` : elle ne la double pas.
+
+       REFUSE d&#x27;enregistrer un essai non annoncé — c&#x27;est la règle du cours, appliquée.
+       Ce qu&#x27;elle garantit, et rien de plus : une prédiction existait AVANT que cette ligne soit
+       écrite. Elle ne date pas la mesure — d&#x27;où `essai(...)` pour la garantie complète.&quot;&quot;&quot;
+    prevu = [p for p in PREDICTIONS if p[&quot;essai&quot;] == hypothese]
+    if not prevu:
+        print(f&quot;  refusé : aucune prédiction pour « {hypothese} ».&quot;)
+        print(&quot;  Écrivez prevoir(...) d&#x27;abord — l&#x27;ordre est vérifié, pas seulement demandé.&quot;)
+        return
+    ligne = {&quot;hypothèse&quot;: hypothese, &quot;changement&quot;: changement,
+             &quot;attendu&quot;: attendu, &quot;mesuré&quot;: round(score, 2),
+             &quot;prédiction écrite avant ?&quot;: &quot;oui, à &quot; + prevu[0][&quot;écrit à&quot;]}
+    ESSAIS[:] = [e for e in ESSAIS if e[&quot;hypothèse&quot;] != hypothese] + [ligne]
+    display(pd.DataFrame(ESSAIS))
+</code></pre>
+
+<h3>La matrice de confusion</h3>
+<p><strong>Couche — la métrique.</strong> La matrice est le socle de toutes les mesures qui suivent.</p>
+<p>Une exactitude ne dit pas <strong>où</strong> le modèle se trompe. Deux modèles qui se trompent à l’opposé
+affichent le même chiffre. La matrice de confusion garde cette information : deux réponses
+possibles, deux erreurs possibles, quatre cases.</p>
+<p><strong>Les quatre noms, en clair.</strong></p>
+<ul>
+<li><strong>Vrai positif (VP)</strong> : le patient ne venait pas, et le modèle l’a annoncé. Juste et utile.</li>
+<li><strong>Faux positif (FP)</strong> : le patient venait, et le modèle a annoncé son absence. C’est la <strong>fausse alerte</strong>.</li>
+<li><strong>Faux négatif (FN)</strong> : le patient ne venait pas, et le modèle a annoncé sa présence. C’est l’<strong>absence manquée</strong>.</li>
+<li><strong>Vrai négatif (VN)</strong> : le patient venait, et le modèle l’a annoncé présent. Juste et sans effet.</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Ce qui s’est passé</th>
+<th>Le modèle annonce une absence (positif)</th>
+<th>Le modèle annonce une présence (négatif)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Le patient ne vient pas</strong></td>
+<td><strong>Vrai positif (VP)</strong> — le créneau est libéré</td>
+<td><strong>Faux négatif (FN)</strong> — le créneau reste vide</td>
+</tr>
+<tr>
+<td><strong>Le patient vient</strong></td>
+<td><strong>Faux positif (FP)</strong> — le créneau est bloqué pour rien</td>
+<td><strong>Vrai négatif (VN)</strong> — rien ne change</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Lignes = ce qui s’est passé. Colonnes = ce qui a été annoncé.</strong> On compte les quatre cases à
+la main. Puis on les vérifie contre la bibliothèque. Enfin on les colorie : verts les deux
+justes, rouges les deux erreurs.</p>
+<pre><code># les quatre cases, comptées à la main sur le jeu de contrôle
+predit = modele.predict(Xval)
+
+VP = int(((predit == 1) &amp; (yval == 1)).sum())   # annoncé absent, et absent
+FP = int(((predit == 1) &amp; (yval == 0)).sum())   # annoncé absent, et venu : la fausse alerte
+FN = int(((predit == 0) &amp; (yval == 1)).sum())   # annoncé présent, et absent : l’absence manquée
+VN = int(((predit == 0) &amp; (yval == 0)).sum())   # annoncé présent, et venu
+
+assert VP + FP + FN + VN == len(yval)
+
+# et la probabilité, qui servira à déplacer le seuil : c’est elle qui décide, pas le 0/1
+probabilites = modele.predict_proba(Xval)[:, 1]
+
+# les quatre mêmes cases, retrouvées par la bibliothèque — le contrôle, pas la confiance
+from sklearn.metrics import confusion_matrix
+confirme = confusion_matrix(yval, predit).ravel()          # ordre : VN, FP, FN, VP
+assert (VN, FP, FN, VP) == tuple(int(v) for v in confirme), &#x27;les quatre cases ne concordent pas&#x27;
+print(f&#x27;les quatre cases, vérifiées : VP {VP} · FP {FP} · FN {FN} · VN {VN}&#x27;)
+print(f&#x27;→ {FP + FN} erreurs en tout : {FP} fausses alertes, {FN} absences manquées.&#x27;)
+</code></pre>
+
+<pre><code># la même matrice, coloriée — c’est la forme qu’on lit d’un coup d’œil
+import numpy as np
+import matplotlib.pyplot as plt
+
+valeurs = np.array([[VN, FP], [FN, VP]])
+noms = np.array([[&#x27;Vrai négatif (VN)&#x27;, &#x27;Faux positif (FP)&#x27;],
+                 [&#x27;Faux négatif (FN)&#x27;, &#x27;Vrai positif (VP)&#x27;]])
+justes = np.array([[1, 0], [0, 1]])          # 1 = juste, 0 = erreur
+
+fig, ax = plt.subplots(figsize=(7.6, 3.6))
+ax.imshow(justes, cmap=&#x27;RdYlGn&#x27;, vmin=0, vmax=1)
+for i in range(2):
+    for j in range(2):
+        ax.text(j, i, noms[i, j] + &#x27;\n&#x27; + f&#x27;{valeurs[i, j]:,}&#x27;.replace(&#x27;,&#x27;, &#x27; &#x27;),
+                ha=&#x27;center&#x27;, va=&#x27;center&#x27;, fontsize=10)
+ax.set_xticks([0, 1], [&#x27;annoncé : il vient&#x27;, &#x27;annoncé : il ne vient pas&#x27;])
+ax.set_yticks([0, 1], [&#x27;en réalité : il vient&#x27;, &#x27;en réalité : il ne vient pas&#x27;])
+ax.set_title(&#x27;la matrice coloriée : vert = juste, rouge = erreur&#x27;)
+plt.tight_layout()
+plt.show()
+</code></pre>
+
+<h3>Les six métriques, depuis la même matrice</h3>
+<p><strong>Couche — la métrique.</strong> Six questions posées au même tableau.</p>
+<p>Le même tableau donne six chiffres. Chacun répond à une question différente, et chacun a un
+type de tâche où il est le bon outil.</p>
+<p><strong>Le schéma d’abord</strong> : pour chaque métrique, les cases qui comptent. En bleu foncé, les cases
+du numérateur ; en bleu clair, celles du dénominateur.</p>
+<pre><code># une planche de six panneaux : quelles cases compte chaque métrique
+import matplotlib.pyplot as plt
+from matplotlib.patches import Rectangle
+
+noms_cases = {(0, 0): &#x27;VN&#x27;, (0, 1): &#x27;FP&#x27;, (1, 0): &#x27;FN&#x27;, (1, 1): &#x27;VP&#x27;}
+panneaux = [
+    (&#x27;exactitude&#x27;, &#x27;VP + VN / tout&#x27;, {(0, 0), (0, 1), (1, 0), (1, 1)}, {(0, 0), (0, 1), (1, 0), (1, 1)}),
+    (&#x27;exactitude équilibrée&#x27;, &#x27;(rappel + spécificité) / 2&#x27;, {(0, 0), (1, 1)}, {(0, 0), (0, 1), (1, 0), (1, 1)}),
+    (&#x27;précision&#x27;, &#x27;VP / (VP + FP)&#x27;, {(1, 1)}, {(1, 1), (0, 1)}),
+    (&#x27;rappel&#x27;, &#x27;VP / (VP + FN)&#x27;, {(1, 1)}, {(1, 1), (1, 0)}),
+    (&#x27;spécificité&#x27;, &#x27;VN / (VN + FP)&#x27;, {(0, 0)}, {(0, 0), (0, 1)}),
+    (&#x27;F1&#x27;, &#x27;2·P·R / (précision + rappel)&#x27;, {(1, 1)}, {(1, 1), (0, 1), (1, 0)}),
+]
+figure, axes = plt.subplots(2, 3, figsize=(10.6, 5.2))
+for axe, (titre, formule, numerateur, denominateur) in zip(axes.ravel(), panneaux):
+    axe.set_xlim(0, 2); axe.set_ylim(0, 2); axe.axis(&#x27;off&#x27;)
+    for (i, j) in [(0, 0), (0, 1), (1, 0), (1, 1)]:
+        x, y = j, 1 - i
+        couleur = &#x27;#1f4e79&#x27; if (i, j) in numerateur else (&#x27;#a8c6e0&#x27; if (i, j) in denominateur else &#x27;#f0f0f0&#x27;)
+        axe.add_patch(Rectangle((x, y), 1, 1, facecolor=couleur, edgecolor=&#x27;white&#x27;, linewidth=2))
+        axe.text(x + 0.5, y + 0.5, noms_cases[(i, j)], ha=&#x27;center&#x27;, va=&#x27;center&#x27;, fontsize=11)
+    axe.set_title(titre + &#x27;\n&#x27; + formule, fontsize=9)
+figure.suptitle(&#x27;les cases du numérateur (foncé) et du dénominateur (clair)&#x27;, fontsize=10)
+plt.tight_layout()
+plt.show()
+</code></pre>
+
+<table>
+<thead>
+<tr>
+<th>Métrique</th>
+<th>Formule</th>
+<th>En mots</th>
+<th>La bonne métrique quand…</th>
+<th>Exemple évident</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>exactitude</strong></td>
+<td>(VP + VN) / tout</td>
+<td>la part de bonnes réponses</td>
+<td>les deux classes sont équilibrées</td>
+<td>compter les pièces bonnes et mauvaises sur une chaîne</td>
+</tr>
+<tr>
+<td><strong>exactitude équilibrée</strong></td>
+<td>(rappel + spécificité) / 2</td>
+<td>la moyenne des deux taux, un par classe</td>
+<td>les classes sont très déséquilibrées</td>
+<td>une maladie rare, où l’exactitude brute est trompeuse</td>
+</tr>
+<tr>
+<td><strong>précision</strong></td>
+<td>VP / (VP + FP)</td>
+<td>sur les alertes lancées, la part qui étaient justes</td>
+<td>une alerte coûte cher</td>
+<td>un contrôle douanier, où chaque fouille coûte du temps</td>
+</tr>
+<tr>
+<td><strong>rappel</strong></td>
+<td>VP / (VP + FN)</td>
+<td>sur les absences réelles, la part trouvée</td>
+<td>rater coûte plus cher qu’alerter</td>
+<td>un dépistage médical : deux examens inutiles valent mieux qu’un cas raté</td>
+</tr>
+<tr>
+<td><strong>spécificité</strong></td>
+<td>VN / (VN + FP)</td>
+<td>sur les patients venus, la part que l’on n’a pas alertée à tort</td>
+<td>les présences sont la majorité</td>
+<td>un filtre anti-spam qui ne doit jamais bloquer un vrai courriel</td>
+</tr>
+<tr>
+<td><strong>F1</strong></td>
+<td>2 × précision × rappel / (précision + rappel)</td>
+<td>la moyenne harmonique de la précision et du rappel</td>
+<td>on ne sait pas laquelle des deux erreurs payer</td>
+<td>comparer deux modèles sur un problème nouveau</td>
+</tr>
+</tbody>
+</table>
+<pre><code># les six métriques, recalculées depuis les quatre cases — jamais depuis une autre source
+exactitude = (VP + VN) / (VP + FP + FN + VN)
+rappel = VP / (VP + FN)               # la part des patients absents qu’on a trouvés
+specificite = VN / (VN + FP)          # la part des patients venus qu’on n’a pas alertés à tort
+# la part d’alertes justes — et elle n’existe pas si le modèle n’alerte jamais : 0/0 n’est pas 0
+precision = VP / (VP + FP) if (VP + FP) else float(&#x27;nan&#x27;)
+f1 = 2 * precision * rappel / (precision + rappel)   # la moyenne harmonique
+equilibree = (rappel + specificite) / 2
+
+lecture = pd.DataFrame([
+    {&#x27;métrique&#x27;: &#x27;exactitude&#x27;, &#x27;formule&#x27;: &#x27;(VP + VN) / tout&#x27;, &#x27;valeur (%)&#x27;: round(100 * exactitude, 2),
+     &#x27;lecture&#x27;: f&#x27;{100 * exactitude:.0f} bonnes réponses sur 100 lignes&#x27;},
+    {&#x27;métrique&#x27;: &#x27;exactitude équilibrée&#x27;, &#x27;formule&#x27;: &#x27;(rappel + spécificité) / 2&#x27;, &#x27;valeur (%)&#x27;: round(100 * equilibree, 2),
+     &#x27;lecture&#x27;: f&#x27;{100 * equilibree:.0f} : la moyenne des deux taux, un par classe&#x27;},
+    {&#x27;métrique&#x27;: &#x27;précision&#x27;, &#x27;formule&#x27;: &#x27;VP / (VP + FP)&#x27;, &#x27;valeur (%)&#x27;: round(100 * precision, 2),
+     &#x27;lecture&#x27;: f&#x27;sur 100 alertes, {100 * precision:.0f} justes&#x27;},
+    {&#x27;métrique&#x27;: &#x27;rappel&#x27;, &#x27;formule&#x27;: &#x27;VP / (VP + FN)&#x27;, &#x27;valeur (%)&#x27;: round(100 * rappel, 2),
+     &#x27;lecture&#x27;: f&#x27;sur 100 absences réelles, {100 * rappel:.0f} trouvées&#x27;},
+    {&#x27;métrique&#x27;: &#x27;spécificité&#x27;, &#x27;formule&#x27;: &#x27;VN / (VN + FP)&#x27;, &#x27;valeur (%)&#x27;: round(100 * specificite, 2),
+     &#x27;lecture&#x27;: f&#x27;sur 100 patients venus, {100 - 100 * specificite:.0f} alerté à tort&#x27;},
+    {&#x27;métrique&#x27;: &#x27;F1&#x27;, &#x27;formule&#x27;: &#x27;2·P·R / (P + R)&#x27;, &#x27;valeur (%)&#x27;: round(100 * f1, 2),
+     &#x27;lecture&#x27;: f&#x27;{100 * f1:.0f} : le compromis entre précision et rappel&#x27;},
+])
+display(lecture)
+
+# et les six chiffres côte à côte : c’est la figure qui montre qu’ils ne mesurent pas la même chose
+figure, axe = plt.subplots(figsize=(8, 3.2))
+couleurs = [&#x27;#c0392b&#x27; if m == &#x27;exactitude&#x27; else &#x27;#8a9ba8&#x27; for m in lecture[&#x27;métrique&#x27;]]
+axe.barh(lecture[&#x27;métrique&#x27;], lecture[&#x27;valeur (%)&#x27;], color=couleurs)
+axe.set_xlim(0, 100)
+axe.set_xlabel(&#x27;valeur (%)&#x27;)
+axe.set_title(&#x27;six chiffres, six questions — depuis la même matrice&#x27;)
+for y, v in enumerate(lecture[&#x27;valeur (%)&#x27;]):
+    axe.text(v + 1.5, y, f&#x27;{v:.1f} %&#x27;, va=&#x27;center&#x27;, fontsize=9)
+plt.tight_layout()
+plt.show()
+print(&#x27;→ l’exactitude compte les bons pronostics ; le rappel, les absences trouvées ;&#x27;)
+print(&#x27;  la précision, la part d’alertes justes. Choisir l’une, c’est choisir ce qu’on veut.&#x27;)
+</code></pre>
+
+<h3>Quand l’exactitude répond à une autre question</h3>
+<p><strong>Couche — la métrique.</strong> Le piège de celle qui ne dit rien de la décision.</p>
+<p>La cible est rare : un patient sur cinq est absent. Répondre « il vient » à tout le monde donne
+donc un score flatteur, sans lire une seule colonne. Trois stratégies, trois colonnes : le même
+tableau montre ce que chaque chiffre récompense.</p>
+<pre><code># trois stratégies, trois métriques — ce que chacune récompense
+def trois(decision):
+    justes = int(((decision == 1) &amp; (yval == 1)).sum())
+    faux = int(((decision == 1) &amp; (yval == 0)).sum())
+    manques = int(((decision == 0) &amp; (yval == 1)).sum())
+    vrais = int(((decision == 0) &amp; (yval == 0)).sum())
+    return {&#x27;exactitude (%)&#x27;: round(100 * (justes + vrais) / len(yval), 2),
+            &#x27;précision (%)&#x27;: round(100 * justes / (justes + faux), 2) if justes + faux else float(&#x27;nan&#x27;),
+            &#x27;rappel (%)&#x27;: round(100 * justes / (justes + manques), 2)}
+
+tableau = pd.DataFrame([
+    {&#x27;stratégie&#x27;: &#x27;n’alerte jamais&#x27;, **trois(np.zeros(len(yval), dtype=int))},
+    {&#x27;stratégie&#x27;: &#x27;alerte toujours&#x27;, **trois(np.ones(len(yval), dtype=int))},
+    {&#x27;stratégie&#x27;: &#x27;le modèle&#x27;, **trois(predit)},
+])
+display(tableau)
+
+jamais = tableau.loc[0]; toujours = tableau.loc[1]; modele_ligne = tableau.loc[2]
+ex_jamais, rap_toujours, prec_toujours = jamais[&#x27;exactitude (%)&#x27;], toujours[&#x27;rappel (%)&#x27;], toujours[&#x27;précision (%)&#x27;]
+ex_modele, rap_modele = modele_ligne[&#x27;exactitude (%)&#x27;], modele_ligne[&#x27;rappel (%)&#x27;]
+print(f&#x27;→ ne rien faire : {ex_jamais:.2f} % d’exactitude et 0 absence trouvée.&#x27;)
+print(f&#x27;  alerter toujours : {rap_toujours:.0f} % de rappel, mais {prec_toujours:.2f} % de précision&#x27;)
+print(&#x27;  — une alerte sur cinq est juste.&#x27;)
+print(f&#x27;  le modèle : {ex_modele:.2f} % d’exactitude, {rap_modele:.2f} % de rappel.&#x27;)
+print(&#x27;  Un chiffre qui récompense le modèle qui ne fait rien n’est pas une mesure : c’est un piège.&#x27;)
+</code></pre>
+
+<h3>Ce que le rang mesure, et ce que la perte mesure</h3>
+<p><strong>Couches — la métrique et la perte.</strong> Deux façons de juger, et ce qu’elles ignorent.</p>
+<p><strong>Le prérequis</strong>, parce que tout le reste en dépend : le modèle ne rend pas un oui ou un non,
+il rend une <strong>probabilité</strong>. Un <strong>seuil</strong> transforme cette probabilité en décision. Les métriques
+de rang jugent la probabilité sans choisir de seuil ; les métriques de perte jugent la
+probabilité elle-même.</p>
+<p><strong>La courbe ROC</strong> croise le taux de vrais positifs (le rappel) et le taux de faux positifs
+<code>FP / (FP + VN)</code>. Sa diagonale est le hasard. <strong>L’aire sous la ROC (ROC-AUC)</strong> se lit ainsi : la
+chance qu’un patient absent tiré au hasard soit mieux classé qu’un patient venu tiré au hasard.
+0,5 = le hasard, 1 = parfait.</p>
+<p><strong>La courbe précision/rappel (PR)</strong> croise la précision et le rappel. Son plancher n’est pas une
+diagonale : c’est le <strong>taux de base</strong>, la part d’absents. Une PR-AUC se lit donc <strong>en multiple
+de son plancher</strong> : la cellule imprime ce rapport, et c’est lui qui parle.</p>
+<p><strong>Pourquoi la ROC flatte une cible rare</strong> : son taux de faux positifs divise les fausses alertes
+par le nombre de patients venus, qui se compte en dizaines de milliers. La précision, elle, les
+divise par le nombre d’alertes — quelques centaines. Le même nombre d’erreurs pèse donc bien
+moins dans la ROC, et la table qui suit le chiffre.</p>
+<pre><code># les deux courbes, côte à côte, et les seuils marqués dessus
+from sklearn.metrics import roc_curve, precision_recall_curve, roc_auc_score, average_precision_score
+import matplotlib.pyplot as plt
+
+faux_positifs, vrais_positifs, _ = roc_curve(yval, probabilites)
+precisions, rappels, _ = precision_recall_curve(yval, probabilites)
+figure, (gauche, droite) = plt.subplots(1, 2, figsize=(10.6, 3.9))
+
+gauche.plot(faux_positifs, vrais_positifs, color=&#x27;#2b6cb0&#x27;, linewidth=2)
+gauche.plot([0, 1], [0, 1], color=&#x27;#a0aec0&#x27;, linestyle=&#x27;--&#x27;, linewidth=1)
+gauche.set_xlabel(&#x27;taux de faux positifs&#x27;); gauche.set_ylabel(&#x27;taux de vrais positifs (rappel)&#x27;)
+gauche.set_title(f&#x27;ROC — aire {roc_auc_score(yval, probabilites):.3f}&#x27;)
+
+droite.plot(rappels, precisions, color=&#x27;#b5651d&#x27;, linewidth=2)
+droite.axhline(yval.mean(), color=&#x27;#a0aec0&#x27;, linestyle=&#x27;--&#x27;, linewidth=1)
+droite.set_xlabel(&#x27;rappel&#x27;); droite.set_ylabel(&#x27;précision&#x27;)
+droite.set_title(f&#x27;PR — aire {average_precision_score(yval, probabilites):.3f} (plancher {yval.mean():.3f})&#x27;)
+
+for seuil in (0.20, 0.30, 0.50):
+    alerte = probabilites &gt; seuil
+    justes = int((alerte &amp; (yval == 1)).sum()); faux = int((alerte &amp; (yval == 0)).sum())
+    x_roc, y_roc = faux / (yval == 0).sum(), justes / (yval == 1).sum()
+    x_pr, y_pr = justes / (yval == 1).sum(), justes / max(justes + faux, 1)
+    gauche.plot(x_roc, y_roc, &#x27;o&#x27;, color=&#x27;#2d3748&#x27;)
+    gauche.annotate(f&#x27;{seuil:.2f}&#x27;, (x_roc, y_roc), textcoords=&#x27;offset points&#x27;, xytext=(5, 5), fontsize=8)
+    droite.plot(x_pr, y_pr, &#x27;o&#x27;, color=&#x27;#2d3748&#x27;)
+    droite.annotate(f&#x27;{seuil:.2f}&#x27;, (x_pr, y_pr), textcoords=&#x27;offset points&#x27;, xytext=(5, 5), fontsize=8)
+plt.tight_layout()
+plt.show()
+aire_pr = average_precision_score(yval, probabilites)
+print(f&#x27;→ la PR-AUC vaut {aire_pr / yval.mean():.1f} fois le taux de base ({yval.mean():.3f}) :&#x27;)
+print(&#x27;  c’est ce rapport qui parle, pas l’aire seule.&#x27;)
+</code></pre>
+
+<pre><code># le même nombre d’erreurs, vu par les deux métriques — c’est là que la ROC flatte
+lignes = []
+for seuil in np.round(np.arange(0.10, 0.71, 0.10), 2):
+    alerte = (probabilites &gt; seuil)
+    justes = int((alerte &amp; (yval == 1)).sum()); faux = int((alerte &amp; (yval == 0)).sum())
+    lignes.append({&#x27;seuil&#x27;: seuil, &#x27;alertes&#x27;: int(alerte.sum()),
+                   &#x27;précision (%)&#x27;: round(100 * justes / max(justes + faux, 1), 1),
+                   &#x27;taux de faux positifs (%)&#x27;: round(100 * faux / (yval == 0).sum(), 2)})
+display(pd.DataFrame(lignes))
+venus = int((yval == 0).sum())
+print(f&#x27;→ le taux de faux positifs divise par {venus:,} patients venus ;&#x27;)
+print(&#x27;  la précision divise par les alertes — quelques centaines. Même erreur, poids différent.&#x27;)
+
+# et le plafond de la séance 3, relu en PR-AUC
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.linear_model import LogisticRegression
+print(&#x27;le même plafond, relu en PR-AUC&#x27;)
+for nom, famille, table in (
+        (&#x27;arbres (boosting)&#x27;, HistGradientBoostingClassifier(random_state=0), Xtr),
+        (&#x27;un arbre unique&#x27;, DecisionTreeClassifier(random_state=0, max_depth=8), Xtr_n),
+        (&#x27;modèle linéaire&#x27;, LogisticRegression(solver=&#x27;newton-cholesky&#x27;), Xtr_n)):
+    ajuste = famille.fit(table, ytr)
+    cible = Xval if table is Xtr else Xval_n
+    print(f&#x27;  {nom:&lt;18} PR-AUC {average_precision_score(yval, ajuste.predict_proba(cible)[:, 1]):.4f}&#x27;)
+print(&#x27;→ trois familles à 0,3 point d’exactitude ne se valent pas en PR-AUC :&#x27;)
+print(&#x27;  la métrique choisie décide du classement.&#x27;)
+</code></pre>
+
+<h3>La perte : ce que le modèle optimise</h3>
+<p><strong>Couche — la perte.</strong> Le chiffre que l’entraînement voit, et que le rapport ne montre jamais.</p>
+<p><strong>Le principe, en trois temps.</strong> Le modèle devine une probabilité. Un nombre mesure à quel point
+il s’est trompé. L’entraînement ajuste le modèle pour diminuer ce nombre. Ce nombre est la
+<strong>perte</strong> — et il n’apparaît jamais dans un rapport : il sert pendant l’apprentissage.</p>
+<p><strong>Deux pertes, deux façons de punir.</strong> La <strong>log-loss</strong> vaut <code>−log(p)</code> pour la vraie classe :
+elle punit très fort une annonce confiante et fausse : pour un patient absent, annoncer 0,01
+coûte 4,6. Elle ne coûte presque rien à une annonce juste : annoncer 0,99, pour ce même patient
+absent, coûte 0,01. Le <strong>score de Brier</strong> vaut <code>(p − y)²</code> : plus doux, il mesure l’écart au carré.</p>
+<p><strong>Qui minimise quoi</strong> : la régression logistique et les arbres par correction minimisent la
+log-loss ; une régression minimise l’erreur au carré ; un arbre unique minimise l’impureté de ses
+feuilles ; un modèle des k plus proches voisins n’a pas de perte d’entraînement du tout.</p>
+<pre><code># la forme des deux pertes : ce qu’elles infligent à une annonce confiante
+import numpy as np
+import matplotlib.pyplot as plt
+
+p = np.linspace(0.01, 0.99, 200)
+figure, (gauche, droite) = plt.subplots(1, 2, figsize=(10.4, 3.6))
+
+gauche.plot(p, -np.log(p), label=&#x27;patient absent (y = 1)&#x27;, color=&#x27;#b5651d&#x27;)
+gauche.plot(p, -np.log(1 - p), label=&#x27;patient venu (y = 0)&#x27;, color=&#x27;#2b6cb0&#x27;)
+gauche.set_xlabel(&#x27;probabilité annoncée pour un absent&#x27;); gauche.set_ylabel(&#x27;−log(p)&#x27;)
+gauche.set_ylim(0, 5); gauche.set_title(&#x27;la log-loss&#x27;); gauche.legend(fontsize=8)
+
+droite.plot(p, (p - 1) ** 2, label=&#x27;patient absent (y = 1)&#x27;, color=&#x27;#b5651d&#x27;)
+droite.plot(p, p ** 2, label=&#x27;patient venu (y = 0)&#x27;, color=&#x27;#2b6cb0&#x27;)
+droite.set_xlabel(&#x27;probabilité annoncée pour un absent&#x27;); droite.set_ylabel(&#x27;(p − y)²&#x27;)
+droite.set_ylim(0, 1.1); droite.set_title(&#x27;le score de Brier&#x27;); droite.legend(fontsize=8)
+plt.tight_layout()
+plt.show()
+print(&#x27;→ à droite, se tromper coûte au plus 1 ; à gauche, une annonce confiante et fausse&#x27;)
+print(&#x27;  coûte sans plafond. C’est pour cela que la log-loss est la perte des classifieurs.&#x27;)
+</code></pre>
+
+<pre><code># quatre patients, calculés à la main, puis vérifiés contre la bibliothèque
+from sklearn.metrics import log_loss, brier_score_loss
+
+verites = np.array([1, 1, 0, 0])                # deux absents, deux venus
+annonces = np.array([0.90, 0.05, 0.80, 0.30])   # la probabilité d’absence annoncée
+
+logloss_main = -np.mean(np.where(verites == 1, np.log(annonces), np.log(1 - annonces)))
+brier_main = np.mean((annonces - verites) ** 2)
+assert np.isclose(logloss_main, log_loss(verites, annonces)), &#x27;la log-loss ne concorde pas&#x27;
+assert np.isclose(brier_main, brier_score_loss(verites, annonces)), &#x27;le Brier ne concorde pas&#x27;
+
+for v, a in zip(verites, annonces):
+    etat = &#x27;absent&#x27; if v == 1 else &#x27;venu&#x27;
+    cout_log = -np.log(a) if v == 1 else -np.log(1 - a)
+    print(f&#x27;  patient {etat}, annoncé {a:.2f} : −log {cout_log:5.2f}, Brier {(a - v) ** 2:5.3f}&#x27;)
+print(f&#x27;→ moyenne : log-loss {logloss_main:.4f}, Brier {brier_main:.4f} — les deux concordent.&#x27;)
+</code></pre>
+
+<pre><code># le modèle contre la probabilité constante, sur nos données
+constante = np.full(len(yval), yval.mean())
+print(&#x27;les deux pertes, sur nos données \n&#x27;)
+print(f&#x27;  log-loss du modèle                   : {log_loss(yval, probabilites):.4f}&#x27;)
+print(f&#x27;  log-loss de la probabilité constante : {log_loss(yval, constante):.4f}&#x27;)
+print(f&#x27;  Brier du modèle                      : {brier_score_loss(yval, probabilites):.4f}&#x27;)
+print(f&#x27;  Brier de la probabilité constante    : {brier_score_loss(yval, constante):.4f}&#x27;)
+print(&#x27;→ les deux pertes baissent quand les probabilités annoncées sont justes,&#x27;)
+print(&#x27;  pas quand le classement est bon. Une probabilité juste n’est pas une&#x27;)
+print(&#x27;  probabilité calibrée : la courbe de fiabilité se trace en séance 11.&#x27;)
+</code></pre>
+
+<blockquote>
+<p><strong>Question →</strong> <code>Devoir_maison_2.ipynb</code>, <strong>question 10 (carnet J4)</strong> — vos six métriques, les deux aires, et votre log-loss.</p>
+</blockquote>
+<h3>Le coût, et le seuil</h3>
+<p><strong>Couche — le coût.</strong> Ce que la décision paie, et le réglage qui la déplace.</p>
+<p>Toutes les erreurs ne se valent pas. Une <strong>fausse alerte</strong> coûte <strong>25 u.</strong> : un créneau bloqué
+pour un patient qui venait. Une <strong>absence manquée</strong> coûte <strong>100 u.</strong> : un créneau vide, une
+équipe qui attend. Ces deux montants sont <strong>fixés par l’énoncé</strong> ; ils ne sont pas à choisir.</p>
+<p><strong>Le seuil se déduit, il ne se devine pas.</strong> Alerter quand la probabilité d’absence dépasse <code>p</code>
+coûte en moyenne <code>25 × (1 − p)</code> par patient venu, et ne pas alerter coûte <code>100 × p</code> par patient
+absent. On alerte donc tant que <code>25 × (1 − p) &lt; 100 × p</code>, c’est-à-dire tant que <code>p &gt; 0,20</code>.</p>
+<p><strong>Et ce seuil s’apprend sans voir la mesure.</strong> On le choisit sur des probabilités produites par
+validation croisée sur l’apprentissage : chaque ligne est prédite par un modèle qui ne l’a jamais
+vue, et le jeu de contrôle ne sert qu’à vérifier.</p>
+<pre><code># le coût d’une décision, et la dérivation du seuil
+COUT_FP, COUT_FN = 25, 100   # les deux montants de l’énoncé, en unités de coût
+
+def cout(decision, verite=yval):
+    faux_positifs = int(((decision == 1) &amp; (verite == 0)).sum())
+    faux_negatifs = int(((decision == 0) &amp; (verite == 1)).sum())
+    return COUT_FP * faux_positifs + COUT_FN * faux_negatifs
+
+seuil_theorique = COUT_FP / (COUT_FP + COUT_FN)
+print(&#x27;la dérivation du seuil \n&#x27;)
+print(f&#x27;  alerter coûte 25 × (1 − p) par patient venu ; ne pas alerter coûte 100 × p par absent&#x27;)
+print(f&#x27;  on alerte tant que 25 × (1 − p) &lt; 100 × p, soit p &gt; 25 / (25 + 100) = {seuil_theorique:.2f}&#x27;)
+print(&#x27;  → ce chiffre suppose que les probabilités annoncées veulent dire quelque chose.&#x27;)
+</code></pre>
+
+<pre><code># la courbe du coût, seuil par seuil — et le seuil appris, choisi hors de la mesure
+from sklearn.model_selection import cross_val_predict
+
+# le rituel : ce qu’on attend est écrit avant la mesure, sinon `noter` refuse la ligne
+prevoir(&quot;le seuil de coût minimal&quot;,
+        &quot;le seuil qui coûte le moins est plus bas que 0,50&quot;,
+        &quot;une absence manquée coûte 100, une fausse alerte 25 : on alerte donc plus volontiers&quot;)
+
+courbe = []
+for seuil in np.round(np.arange(0.04, 0.96, 0.02), 2):
+    decision = (probabilites &gt; seuil).astype(int)
+    courbe.append({&#x27;seuil&#x27;: float(seuil), &#x27;alertes&#x27;: int(decision.sum()),
+                   &#x27;exactitude (%)&#x27;: round(100 * (decision == yval).mean(), 2),
+                   &#x27;coût&#x27;: cout(decision)})
+courbe = pd.DataFrame(courbe)
+
+# le seuil appris : chaque ligne de l’apprentissage est prédite par un modèle qui ne l’a pas vue
+proba_apprises = cross_val_predict(
+    HistGradientBoostingClassifier(random_state=0), Xtr, ytr, cv=5, method=&#x27;predict_proba&#x27;)[:, 1]
+courbe_appris = pd.DataFrame([
+    {&#x27;seuil&#x27;: float(s), &#x27;coût&#x27;: cout((proba_apprises &gt; s).astype(int), verite=ytr)}
+    for s in np.round(np.arange(0.04, 0.96, 0.02), 2)])
+seuil_appris_cout = float(courbe_appris.loc[courbe_appris[&#x27;coût&#x27;].idxmin(), &#x27;seuil&#x27;])
+
+display(courbe.iloc[::5].reset_index(drop=True))
+print(f&#x27;→ le seuil appris sur l’apprentissage seul : {seuil_appris_cout:.2f}&#x27;)
+print(f&#x27;  la formule                                 : {seuil_theorique:.2f}&#x27;)
+print(f&#x27;  le minimum de la courbe de contrôle        : {courbe.loc[courbe[&quot;coût&quot;].idxmin(), &quot;seuil&quot;]:.2f}&#x27;)
+print(&#x27;  — celui-là est choisi et jugé sur le même jeu : il gagne par construction.&#x27;)
+
+noter(&quot;le seuil de coût minimal&quot;, &quot;la courbe du coût, seuil par seuil&quot;,
+      &quot;un seuil plus bas que 0,50&quot;, float(seuil_appris_cout))
+</code></pre>
+
+<pre><code># la courbe, tracée : ce que l’apprentissage choisit, ce que le contrôle vérifie
+import matplotlib.pyplot as plt
+
+figure, axe = plt.subplots(figsize=(9.0, 4.2))
+axe.plot(courbe_appris[&#x27;seuil&#x27;], courbe_appris[&#x27;coût&#x27;], color=&#x27;#2b6cb0&#x27;, linewidth=2,
+         label=&#x27;apprentissage (validation croisée) — choisit&#x27;)
+axe.plot(courbe[&#x27;seuil&#x27;], courbe[&#x27;coût&#x27;], color=&#x27;#b5651d&#x27;, linewidth=2, linestyle=&#x27;--&#x27;,
+         label=&#x27;contrôle — vérifie&#x27;)
+axe.axvline(seuil_appris_cout, color=&#x27;#2b6cb0&#x27;, linestyle=&#x27;:&#x27;, linewidth=1)
+axe.axvline(seuil_theorique, color=&#x27;#4a5568&#x27;, linestyle=&#x27;:&#x27;, linewidth=1)
+axe.set_xlabel(&#x27;seuil de décision&#x27;); axe.set_ylabel(&#x27;coût total&#x27;)
+axe.set_title(&#x27;le coût, seuil par seuil : la courbe qui choisit n’est pas celle qui juge&#x27;)
+axe.legend(fontsize=8)
+plt.tight_layout()
+plt.show()
+</code></pre>
+
+<pre><code># le coût empilé : la part des fausses alertes, la part des absences manquées
+empile = []
+for seuil in courbe[&#x27;seuil&#x27;]:
+    decision = (probabilites &gt; seuil).astype(int)
+    faux = int(((decision == 1) &amp; (yval == 0)).sum())
+    manques = int(((decision == 0) &amp; (yval == 1)).sum())
+    empile.append({&#x27;seuil&#x27;: seuil, &#x27;fausses alertes&#x27;: COUT_FP * faux, &#x27;absences manquées&#x27;: COUT_FN * manques})
+empile = pd.DataFrame(empile)
+
+figure, axe = plt.subplots(figsize=(9.0, 3.8))
+axe.stackplot(empile[&#x27;seuil&#x27;], empile[&#x27;fausses alertes&#x27;], empile[&#x27;absences manquées&#x27;],
+              colors=[&#x27;#b5651d&#x27;, &#x27;#2b6cb0&#x27;], labels=[&#x27;fausses alertes (25 u. chacune)&#x27;, &#x27;absences manquées (100 u. chacune)&#x27;])
+axe.axvline(seuil_appris_cout, color=&#x27;#2d3748&#x27;, linestyle=&#x27;:&#x27;, linewidth=1)
+axe.set_xlabel(&#x27;seuil de décision&#x27;); axe.set_ylabel(&#x27;coût total&#x27;)
+axe.set_title(&#x27;le minimum est l’endroit où les deux parts se croisent&#x27;)
+axe.legend(fontsize=8, loc=&#x27;upper center&#x27;)
+plt.tight_layout()
+plt.show()
+</code></pre>
+
+<pre><code># deux décisions, deux matrices : ce que le seuil déplace
+def quatre_cases(decision):
+    return {&#x27;VP&#x27;: int(((decision == 1) &amp; (yval == 1)).sum()),
+            &#x27;FP&#x27;: int(((decision == 1) &amp; (yval == 0)).sum()),
+            &#x27;FN&#x27;: int(((decision == 0) &amp; (yval == 1)).sum()),
+            &#x27;VN&#x27;: int(((decision == 0) &amp; (yval == 0)).sum())}
+
+a_cinquante = quatre_cases(predit)
+au_seuil = quatre_cases((probabilites &gt; seuil_appris_cout).astype(int))
+comparaison = pd.DataFrame([
+    {&#x27;décision&#x27;: &#x27;seuil 0,50&#x27;, **a_cinquante,
+     &#x27;coût pour 1 000 patients&#x27;: round(cout(predit) * 1000 / len(yval))},
+    {&#x27;décision&#x27;: f&#x27;seuil appris {seuil_appris_cout:.2f}&#x27;, **au_seuil,
+     &#x27;coût pour 1 000 patients&#x27;: round(cout((probabilites &gt; seuil_appris_cout).astype(int)) * 1000 / len(yval))},
+])
+display(comparaison)
+print(f&#x27;→ {au_seuil[&quot;VP&quot;] - a_cinquante[&quot;VP&quot;]} absences trouvées en plus, au prix de&#x27;)
+print(f&#x27;  {au_seuil[&quot;FP&quot;] - a_cinquante[&quot;FP&quot;]} fausses alertes en plus.&#x27;)
+</code></pre>
+
+<blockquote>
+<p><strong>Question →</strong> <code>Devoir_maison_2.ipynb</code>, <strong>question 11 (carnet J4)</strong> — votre courbe, votre seuil, et le chiffre qui le justifie.</p>
+</blockquote>
+<h3>La révélation : la métrique affichée, et le classement réel</h3>
+<p><strong>Couches — la métrique et le coût.</strong> Ce que le classement affiché ne voit pas.</p>
+<p>Le classement affiché se fait sur l’<strong>exactitude</strong>. La décision se paie en <strong>coût</strong>. Les deux
+classements ne désignent donc pas la même tête — et c’est la seconde qu’une équipe déploierait.</p>
+<p>L’exactitude traite les deux erreurs comme égales. Le coût pèse 100 contre 25 : il préfère
+<strong>bloquer un créneau pour rien</strong> (25) plutôt que <strong>laisser un créneau vide</strong> (100). Ce n’est pas
+un détail de calcul, c’est le choix de ce qu’on accepte de payer.</p>
+<pre><code># les deux classements, sur la même population
+strategies = {&#x27;n’alerte jamais&#x27;: np.zeros(len(yval), dtype=int),
+              &#x27;alerte toujours&#x27;: np.ones(len(yval), dtype=int)}
+for seuil in (0.10, 0.20, 0.30, 0.40, 0.50):
+    strategies[f&#x27;le modèle, seuil {seuil:.2f}&#x27;] = (probabilites &gt; seuil).astype(int)
+strategies[f&#x27;seuil appris ({seuil_appris_cout:.2f})&#x27;] = (probabilites &gt; seuil_appris_cout).astype(int)
+
+lignes = pd.DataFrame([{&#x27;stratégie&#x27;: nom,
+                        &#x27;exactitude (%)&#x27;: round(100 * (decision == yval).mean(), 2),
+                        &#x27;coût&#x27;: cout(decision)}
+                       for nom, decision in strategies.items()])
+
+par_exactitude = lignes.sort_values(&#x27;exactitude (%)&#x27;, ascending=False).reset_index(drop=True)
+par_cout = lignes.sort_values(&#x27;coût&#x27;).reset_index(drop=True)
+print(&#x27;le classement affiché (par exactitude)&#x27;)
+display(par_exactitude)
+print(&#x27;le classement réel (par coût)&#x27;)
+display(par_cout)
+</code></pre>
+
+<pre><code># les deux classements, en pente : vert quand la stratégie gagne des places
+import matplotlib.pyplot as plt
+
+rang_exactitude = {nom: i + 1 for i, nom in enumerate(par_exactitude[&#x27;stratégie&#x27;])}
+rang_cout = {nom: i + 1 for i, nom in enumerate(par_cout[&#x27;stratégie&#x27;])}
+
+figure, axe = plt.subplots(figsize=(8.4, 4.8))
+for nom in lignes[&#x27;stratégie&#x27;]:
+    a, b = rang_exactitude[nom], rang_cout[nom]
+    couleur = &#x27;#2f855a&#x27; if b &lt; a else (&#x27;#c53030&#x27; if b &gt; a else &#x27;#a0aec0&#x27;)
+    axe.plot([0, 1], [a, b], marker=&#x27;o&#x27;, color=couleur, linewidth=1.6)
+    axe.text(-0.03, a, nom, ha=&#x27;right&#x27;, va=&#x27;center&#x27;, fontsize=8)
+axe.set_xlim(-0.02, 1.02); axe.invert_yaxis()
+axe.set_xticks([0, 1], [&#x27;rang par exactitude&#x27;, &#x27;rang par coût&#x27;])
+axe.set_yticks([]); axe.set_title(&#x27;le même modèle, deux classements&#x27;)
+plt.tight_layout()
+plt.show()
+</code></pre>
+
+<pre><code># ce que coûte l’erreur de métrique : le regret, ramené à 1 000 patients
+vainqueur_affiche = par_exactitude.iloc[0][&#x27;stratégie&#x27;]
+vainqueur_reel = par_cout.iloc[0][&#x27;stratégie&#x27;]
+cout_affiche = int(lignes.loc[lignes[&#x27;stratégie&#x27;] == vainqueur_affiche, &#x27;coût&#x27;].iloc[0])
+cout_reel = int(lignes.loc[lignes[&#x27;stratégie&#x27;] == vainqueur_reel, &#x27;coût&#x27;].iloc[0])
+regret = cout_affiche - cout_reel
+
+print(f&#x27;l’exactitude place en tête : {vainqueur_affiche}&#x27;)
+print(f&#x27;le coût place en tête       : {vainqueur_reel}&#x27;)
+print(f&#x27;→ déployer le premier coûte {regret:,} de plus que le second sur ce jeu,&#x27;.replace(&#x27;,&#x27;, &#x27; &#x27;))
+print(f&#x27;  soit {round(regret * 1000 / len(yval)):,} unités pour 1 000 patients.&#x27;.replace(&#x27;,&#x27;, &#x27; &#x27;))
+</code></pre>
+
+<blockquote>
+<p><strong>Question →</strong> <code>Devoir_maison_2.ipynb</code>, <strong>question 12 (carnet J4)</strong> — l’écart entre la métrique affichée et le coût réel, sur <strong>vos</strong> prédictions.</p>
+</blockquote>
+<h3>Quand ne pas faire de ML</h3>
+<p><strong>Couche — la décision.</strong> Avant le modèle, la question du coût.</p>
+<p>Toutes les décisions ne méritent pas un modèle. Une <strong>règle simple écrite à la main</strong> arrive en
+une semaine. Elle ne demande aucune maintenance et aucune donnée à surveiller. Elle bat souvent
+un modèle qu’il faudra réentraîner, expliquer et défendre.</p>
+<p><strong>Cinq questions avant d’entraîner quoi que ce soit :</strong></p>
+<ol>
+<li>une règle simple existe-t-elle déjà, et que coûte-t-elle ?</li>
+<li>le modèle apporte-t-il un gain de coût mesuré, ou seulement un meilleur score ?</li>
+<li>les données nécessaires existent-elles au moment de la décision ?</li>
+<li>qui maintiendra le modèle quand la population changera ?</li>
+<li>la décision doit-elle pouvoir s’expliquer à un patient, à un médecin, à un juge ?</li>
+</ol>
+<p>Le tableau qui suit répond aux deux premières. Chaque solution est mesurée par son coût. Le
+gain se lit par rapport à la référence.</p>
+<pre><code># l’échelle des solutions, mesurée : le coût décide, pas la mode
+reference = cout(np.zeros(len(yval), dtype=int))   # ne rien faire
+echelle = pd.DataFrame([
+    {&#x27;solution&#x27;: &#x27;ne rien faire (la référence)&#x27;,
+     &#x27;exactitude (%)&#x27;: round(100 * (yval == 0).mean(), 2), &#x27;coût&#x27;: reference},
+    {&#x27;solution&#x27;: f&#x27;règle du délai : absent si le délai dépasse {seuil_appris} jours&#x27;,
+     &#x27;exactitude (%)&#x27;: round(100 * (regle == yval).mean(), 2), &#x27;coût&#x27;: cout(regle)},
+    {&#x27;solution&#x27;: &#x27;règle de l’historique : absent si ce patient a déjà manqué un rendez-vous&#x27;,
+     &#x27;exactitude (%)&#x27;: round(100 * ((Xval[&#x27;taux_absence_passe&#x27;] &gt; 0).astype(int) == yval).mean(), 2),
+     &#x27;coût&#x27;: cout((Xval[&#x27;taux_absence_passe&#x27;] &gt; 0).astype(int))},
+    {&#x27;solution&#x27;: &#x27;la famille linéaire&#x27;,
+     &#x27;exactitude (%)&#x27;: round(100 * lineaire.score(Xval_n, yval), 2),
+     &#x27;coût&#x27;: cout(lineaire.predict(Xval_n))},
+    {&#x27;solution&#x27;: &#x27;le modèle (arbres entraînés par corrections)&#x27;,
+     &#x27;exactitude (%)&#x27;: round(100 * exactitude, 2), &#x27;coût&#x27;: cout(predit)},
+])
+echelle[&#x27;gain vs référence (%)&#x27;] = (100 * (reference - echelle[&#x27;coût&#x27;]) / reference).round(1)
+display(echelle)
+print(&#x27;→ la meilleure exactitude de cette échelle n’est pas le coût le plus bas :&#x27;)
+print(&#x27;  le choix se fait sur la décision, et la décision se paie.&#x27;)
+print(&#x27;  Trois situations, dont une du sujet du cours : c’est ce que le devoir vous demande.&#x27;)
+</code></pre>
+
+<p><strong>Une démonstration, sur un autre jeu.</strong> Des capteurs de machine enregistrent la température,
+la vitesse, le couple et l’usure ; 3,4 % des lignes signalent une panne. Une règle de deux lignes
+— le produit du couple et de l’usure — est comparée à un modèle qui lit les cinq capteurs.
+Les deux sont jugés sur le même jeu de contrôle, avec les mêmes prix.</p>
+<p>Le résultat n’est pas celui qu’on attend : la règle est précise, mais elle laisse passer deux
+pannes sur trois. C’est la mesure qui tranche, et c’est pour cela qu’on la fait.</p>
+<pre><code># une règle de deux lignes contre un modèle à cinq capteurs
+from sklearn.metrics import f1_score, recall_score
+from sklearn.model_selection import train_test_split
+
+# le fichier accompagne le jeu de données ; à défaut, il est à côté du dossier des données
+chemin_pannes = os.path.join(DOSSIER, &#x27;machine_failure.csv&#x27;)
+if not os.path.exists(chemin_pannes):
+    chemin_pannes = os.path.join(os.path.dirname(DOSSIER), &#x27;machine_failure.csv&#x27;)
+pannes = pd.read_csv(chemin_pannes)
+capteurs = [&#x27;Air temperature [K]&#x27;, &#x27;Process temperature [K]&#x27;, &#x27;Rotational speed [rpm]&#x27;,
+            &#x27;Torque [Nm]&#x27;, &#x27;Tool wear [min]&#x27;]
+Xa_p, Xd_p, ya_p, yd_p = train_test_split(pannes[capteurs], pannes[&#x27;Machine failure&#x27;],
+                                          test_size=0.3, random_state=0,
+                                          stratify=pannes[&#x27;Machine failure&#x27;])
+
+# la règle, écrite à la main, et jugée sur le même contrôle
+regle_pannes = ((Xd_p[&#x27;Torque [Nm]&#x27;] * Xd_p[&#x27;Tool wear [min]&#x27;]) &gt; 11000).astype(int)
+# le modèle, sur les cinq capteurs
+modele_pannes = HistGradientBoostingClassifier(random_state=0).fit(Xa_p, ya_p)
+predit_pannes = modele_pannes.predict(Xd_p)
+
+from sklearn.metrics import precision_score
+
+def bilan(nom, decision):
+    manques = int(((decision == 0) &amp; (yd_p == 1)).sum())
+    fausses = int(((decision == 1) &amp; (yd_p == 0)).sum())
+    print(f&#x27;  {nom:&lt;26} F1 {100 * f1_score(yd_p, decision):5.1f} % · rappel {100 * recall_score(yd_p, decision):5.1f} %&#x27;
+          f&#x27; · précision {100 * precision_score(yd_p, decision):5.1f} %&#x27;
+          f&#x27; · coût {COUT_FP * fausses + COUT_FN * manques:5d}&#x27;)
+
+print(f&#x27;  lignes : {len(pannes)}, pannes : {int(pannes[&quot;Machine failure&quot;].sum())} ({100 * pannes[&quot;Machine failure&quot;].mean():.1f} %)&#x27;)
+bilan(&#x27;la règle écrite à la main&#x27;, regle_pannes)
+bilan(&#x27;le modèle, cinq capteurs&#x27;, predit_pannes)
+print(&#x27;→ la règle est précise, mais elle rate deux pannes sur trois : elle coûte plus cher&#x27;)
+print(&#x27;  que le modèle. La mesurer avant de l’opposer était le point de la démonstration.&#x27;)
+</code></pre>
+
+<blockquote>
+<p><strong>Question →</strong> <code>Devoir_maison_2.ipynb</code>, <strong>question 13 (carnet J4)</strong> — trois situations, et ce que vous feriez <strong>avant</strong> d’entraîner un modèle.</p>
+</blockquote>
+<h3>Et quand la cible est un nombre ?</h3>
+<p><strong>Couche — la métrique.</strong> Les mêmes questions, pour une cible continue.</p>
+<p>Une exactitude n’existe pas pour un nombre. La <strong>table d’activité</strong> donne une ligne par clinique
+et par jour : la date, la clinique, le jour de la semaine, et le nombre de rendez-vous. On suit
+<strong>une</strong> clinique dans le temps, et on prévoit son nombre de rendez-vous quotidiens.</p>
+<p>Le découpage est <strong>chronologique</strong> : on apprend sur le passé, on mesure sur la suite. Un
+découpage au hasard laisserait le futur entrer dans l’apprentissage.</p>
+<pre><code># la table d’activité : une ligne par clinique et par jour
+activite = pd.read_csv(os.path.join(DOSSIER, &#x27;table_activite.csv&#x27;), low_memory=False)
+activite[&#x27;date&#x27;] = pd.to_datetime(activite[&#x27;date&#x27;])
+
+serie = activite[activite[&#x27;clinique&#x27;] == &#x27;C01&#x27;].sort_values(&#x27;date&#x27;).reset_index(drop=True)
+coupure = int(len(serie) * 0.8)
+appris, controle = serie.iloc[:coupure], serie.iloc[coupure:]
+
+jours_fermes = int((activite[&#x27;nb_rendez_vous&#x27;] == 0).sum())
+print(&#x27;la table d’activité \n&#x27;)
+print(&#x27;  lignes :&#x27;, len(activite), &#x27;— une par clinique et par jour&#x27;)
+print(f&#x27;  jours à zéro rendez-vous : {jours_fermes} ({100 * jours_fermes / len(activite):.1f} %) — la clinique est fermée&#x27;)
+
+# la baseline : la moyenne du même jour de la semaine, apprise sur le passé
+moyenne_par_jour = appris.groupby(&#x27;jour_semaine&#x27;)[&#x27;nb_rendez_vous&#x27;].mean()
+prevision = controle[&#x27;jour_semaine&#x27;].map(moyenne_par_jour).to_numpy()
+verite = controle[&#x27;nb_rendez_vous&#x27;].to_numpy()
+ecarts = verite - prevision
+</code></pre>
+
+<pre><code># la série, la coupure, et la prévision face à la réalité
+import matplotlib.pyplot as plt
+
+figure, (haut, bas) = plt.subplots(2, 1, figsize=(9.8, 5.6))
+haut.plot(appris[&#x27;date&#x27;], appris[&#x27;nb_rendez_vous&#x27;], color=&#x27;#2b6cb0&#x27;, linewidth=0.8, label=&#x27;appris (le passé)&#x27;)
+haut.plot(controle[&#x27;date&#x27;], controle[&#x27;nb_rendez_vous&#x27;], color=&#x27;#b5651d&#x27;, linewidth=0.8, label=&#x27;contrôle (la vérité)&#x27;)
+haut.plot(controle[&#x27;date&#x27;], prevision, color=&#x27;#2d3748&#x27;, linewidth=1.1, linestyle=&#x27;--&#x27;, label=&#x27;la prévision&#x27;)
+haut.set_title(&#x27;une clinique (C01), jour par jour&#x27;); haut.legend(fontsize=8)
+
+bas.bar(controle[&#x27;date&#x27;], ecarts, color=&#x27;#8a9ba8&#x27;, width=1.0)
+bas.set_title(&#x27;les écarts, jour par jour — les jours fermés font les plus grands écarts&#x27;)
+bas.set_xlabel(&#x27;date&#x27;)
+plt.tight_layout()
+plt.show()
+</code></pre>
+
+<table>
+<thead>
+<tr>
+<th>Métrique</th>
+<th>Formule</th>
+<th>Lecture en rendez-vous</th>
+<th>Quand l’utiliser</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>MAE</strong></td>
+<td>moyenne des écarts absolus</td>
+<td>« on se trompe de X rendez-vous en moyenne »</td>
+<td>la lecture la plus simple, pour une équipe</td>
+</tr>
+<tr>
+<td><strong>RMSE</strong></td>
+<td>racine de la moyenne des erreurs au carré</td>
+<td>comme la MAE, mais une grosse erreur pèse plus</td>
+<td>quand une erreur énorme coûte plus que plusieurs petites</td>
+</tr>
+<tr>
+<td><strong>RMSLE</strong></td>
+<td>la même chose, sur les logarithmes</td>
+<td>l’erreur relative, sans unité</td>
+<td>quand les ordres de grandeur varient (petites et grandes cliniques)</td>
+</tr>
+<tr>
+<td><strong>R²</strong></td>
+<td>1 − variance des erreurs / variance de la vérité</td>
+<td>« la part de la variation expliquée », entre 0 et 1</td>
+<td>pour comparer deux modèles sur la même série</td>
+</tr>
+<tr>
+<td><strong>MAPE</strong></td>
+<td>moyenne des écarts rapportés à la vérité, en %</td>
+<td>« on se trompe de X % »</td>
+<td><strong>jamais</strong> quand la vérité peut valoir zéro</td>
+</tr>
+</tbody>
+</table>
+<pre><code># la même prévision, jugée par cinq métriques
+from sklearn.metrics import mean_absolute_error, mean_squared_error, mean_squared_log_error, r2_score
+
+ouverts = verite &gt; 0
+mae = mean_absolute_error(verite, prevision)
+rmse = mean_squared_error(verite, prevision) ** 0.5
+rmsle = mean_squared_log_error(verite, prevision) ** 0.5
+r2 = r2_score(verite, prevision)
+mape = 100 * (abs(ecarts[ouverts]) / verite[ouverts]).mean()
+print(f&#x27;  MAE   erreur moyenne, en rendez-vous  : {mae:6.2f}&#x27;)
+print(f&#x27;  RMSE  punit les grosses erreurs       : {rmse:6.2f}&#x27;)
+print(f&#x27;  RMSLE erreur relative, en logarithme  : {rmsle:6.3f}&#x27;)
+print(f&#x27;  R²    part de la variance expliquée   : {r2:6.3f}&#x27;)
+print(f&#x27;  MAPE  erreur relative, jours ouverts  : {mape:6.1f} %&#x27;)
+print()
+print(f&#x27;→ {int((~ouverts).sum())} jours de contrôle valent zéro rendez-vous : le MAPE y&#x27;)
+print(&#x27;  diviserait par zéro. Il faut donc une erreur qui se compare au naïf, pas&#x27;)
+print(&#x27;  au zéro — c’est le MASE, en séance 6.&#x27;)
+</code></pre>
+
+<pre><code># ce que le MAPE ferait sur les jours fermés — la division par zéro, montrée
+fermes = verite == 0
+print(f&#x27;  jours fermés dans le contrôle : {int(fermes.sum())} sur {len(verite)}&#x27;)
+print(f&#x27;  un MAPE calculé sur tous les jours diviserait par zéro {int(fermes.sum())} fois.&#x27;)
+print(&#x27;  → c’est pour cela que la ligne du MAPE précise « jours ouverts ».&#x27;)
+
+figure, axe = plt.subplots(figsize=(5.6, 2.4))
+axe.bar([&#x27;jours ouverts&#x27;, &#x27;jours fermés&#x27;], [int((~fermes).sum()), int(fermes.sum())], color=[&#x27;#2b6cb0&#x27;, &#x27;#c53030&#x27;])
+axe.set_title(&#x27;les jours du contrôle : le MAPE ne peut pas lire les fermés&#x27;)
+axe.set_ylabel(&#x27;jours&#x27;)
+plt.tight_layout()
+plt.show()
+</code></pre>
+
+<h3>Ce qu’on retient</h3>
+<p><strong>Les trois couches, en une page.</strong></p>
+<table>
+<thead>
+<tr>
+<th>Couche</th>
+<th>Ce qu’elle règle</th>
+<th>Ce que le carnet en a fait</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>la perte</strong></td>
+<td>ce que le modèle optimise pendant l’apprentissage</td>
+<td>la log-loss, tracée, vérifiée sur quatre patients et comparée à la constante</td>
+</tr>
+<tr>
+<td><strong>la métrique</strong></td>
+<td>ce que le rapport affiche</td>
+<td>six métriques depuis une seule matrice, et les deux aires qui jugent le rang</td>
+</tr>
+<tr>
+<td><strong>le coût</strong></td>
+<td>ce que la décision paie</td>
+<td>25 et 100 unités, un seuil déduit puis appris hors de la mesure</td>
+</tr>
+</tbody>
+</table>
+<p><strong>La métrique</strong> ne dit pas si un modèle est bon : elle dit à quelle question il répond. Sur une
+cible rare, l’exactitude récompense celui qui ne fait rien ; la précision et le rappel disent ce
+qu’il apporte vraiment.</p>
+<p><strong>Le coût</strong> transforme la mesure en décision. Deux modèles à un demi-point d’exactitude peuvent
+coûter très différemment, et le classement qui compte est celui de la facture.</p>
+<p><strong>La perte</strong> explique pourquoi le modèle se trompe comme il se trompe : elle est le seul chiffre
+que l’entraînement voit, et il n’apparaît jamais dans un rapport.</p>
+<p><strong>Et parfois, il ne faut pas de modèle</strong> — mais c’est la mesure qui le dit. Une règle de deux
+lignes se compare au modèle sur le même jeu, avec les mêmes prix. Sur les capteurs de machine,
+elle perd. La question reste posée pour chaque décision : « quelle est la chose la plus simple
+qui atteint l’objectif ? ».</p>
+</body></html>
