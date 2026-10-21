@@ -20,6 +20,8 @@ simule_correctif_J0.py
 construire_notebook_J0.py
 construire_notebook_J0_5.py
 construire_notebook_J1.py
+construire_notebook_J2.py
+construire_notebook_J3.py
 run_notebook_J0.py
 
 # ── corrigés et vérité terrain ──────────────────────────────────────────────────
@@ -48,3 +50,10 @@ __pycache__/
 rapports/
 *.log
 *.py
+
+# ── sujets de projet : SEULS les énoncés étudiants sont publiables ──────────────
+# Les fiches enseignant (Sujet_NN_<nom>_<sujet>.md) portent le plancher, le plafond et la clé de
+# correction : elles n'entrent jamais ici. La première règle bloque tout ce qui vit dans projets/,
+# la seconde ré-autorise les énoncés, qui sont la seule chose à distribuer.
+projets/*.md
+!projets/*_enonce_etudiant.md
