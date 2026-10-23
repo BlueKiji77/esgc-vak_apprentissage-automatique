@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="fr"><head><meta charset="utf-8">
-<title>_porte_J4 — exécuté</title>
+<title>notebook_J4 — exécuté</title>
 <style>
  body{max-width:52rem;margin:2rem auto;padding:0 1rem;line-height:1.55;
        font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#1b1b1b}
@@ -14,10 +14,10 @@
  blockquote{margin:1rem 0;padding:.4rem 1rem;border-left:3px solid #b5651d;background:#fdf7f2}
  .note{background:#eef4f9;border:1px solid #c8d8e4;padding:.7rem 1rem;border-radius:4px}
 </style></head><body>
-<h1>_porte_J4</h1>
+<h1>notebook_J4</h1>
 <p class="note">Copie <strong>exécutée</strong> du carnet, pour la relecture : les sorties sont celles
 d'une exécution complète sur les données du cours. Le carnet à importer dans Kaggle reste
-<code>_porte_J4.ipynb</code>, qui part sans sorties. Si un chiffre diffère, c'est cette copie qui a raison :
+<code>notebook_J4.ipynb</code>, qui part sans sorties. Si un chiffre diffère, c'est cette copie qui a raison :
 elle a tourné.</p>
 <pre># J4 — La mesure, et la révélation
 
@@ -85,8 +85,7 @@ for i, (titre, texte, couleur) in enumerate(niveaux):
 plt.tight_layout()
 plt.show()
 </code></pre>
-<pre class='out'>&lt;cellule 1&gt;:17: UserWarning: FigureCanvasAgg is non-interactive, and thus cannot be shown
-</pre>
+
 <pre>### Les outils
 </pre>
 <pre><code># les outils
@@ -125,8 +124,7 @@ assert DOSSIER, &quot;train.csv introuvable : les données de la compétition so
 
 print(&quot;le dossier des données trouvé :&quot;, DOSSIER)
 </code></pre>
-<pre class='out'>le dossier des données trouvé : sortie
-</pre>
+
 <pre><code>train = pd.read_csv(os.path.join(DOSSIER, &quot;train.csv&quot;), low_memory=False)
 test = pd.read_csv(os.path.join(DOSSIER, &quot;test.csv&quot;), low_memory=False)
 
@@ -139,21 +137,7 @@ print(&quot;test  :&quot;, test.shape, &quot;(lignes, colonnes)&quot;)
 print(&quot;les cinq premières lignes \n&quot;)
 display(train.head())
 </code></pre>
-<pre class='out'>les deux tableaux 
 
-train : (149894, 39) (lignes, colonnes)
-test  : (63721, 38) (lignes, colonnes)
-les cinq premières lignes 
-
-    dossier_id  ligne_id  ... taux_absence_passe patient_absent
-0  DOS-0127912    127913  ...                0.0              1
-1  DOS-0002883      2884  ...                0.0              0
-2  DOS-0098561     98562  ...                0.0              0
-3  DOS-0133156    133157  ...                0.0              0
-4  DOS-0055744     55745  ...                0.0              0
-
-[5 rows x 39 columns]
-</pre>
 <pre>### La table de travail
 </pre>
 <pre><code>A_ECARTER = [ID, &quot;dossier_id&quot;, &quot;patient_id&quot;, &quot;duree_consultation&quot;, &quot;constantes_relevees&quot;,
@@ -182,12 +166,7 @@ print(&quot;colonnes conservées :&quot;, X.shape[1])
 print(&quot;colonnes écartées (cardinalité trop forte) :&quot;, TROP_FIN)
 print(&quot;colonnes catégorielles :&quot;, CAT)
 </code></pre>
-<pre class='out'>la table de travail 
 
-colonnes conservées : 26
-colonnes écartées (cardinalité trop forte) : [&#x27;tournee_jour&#x27;]
-colonnes catégorielles : [&#x27;clinique&#x27;, &#x27;district&#x27;, &#x27;sexe&#x27;, &#x27;quartier&#x27;, &#x27;assurance&#x27;, &#x27;rappel_envoye&#x27;, &#x27;zone_clinique&#x27;]
-</pre>
 <pre>### La cible, et la référence
 </pre>
 <pre><code>print(&quot;la distribution de la cible \n&quot;)
@@ -199,13 +178,7 @@ display(repartition)
 reference = 100 * max(train[CIBLE].mean(), 1 - train[CIBLE].mean())
 print(f&quot;la référence (répondre toujours la classe majoritaire) : {reference:.2f} %&quot;)
 </code></pre>
-<pre class='out'>la distribution de la cible 
 
-         lignes  part (%)
-toutes   149894    100.00
-absents   27357     18.25
-la référence (répondre toujours la classe majoritaire) : 81.75 %
-</pre>
 <pre><code># `y` entre ici ; la référence a déjà été calculée avec la distribution ci-dessus —
 y = train[CIBLE]
 </code></pre>
@@ -268,20 +241,7 @@ print(f&#x27;  et la règle qui ne dirait jamais rien ferait {100 * (silence == 
 print(&#x27;  exactement la réponse constante. Une règle en place se mesure avant d’être opposée&#x27;)
 print(&#x27;  à un modèle ; ce que cela dit d’une exactitude reste ouvert.&#x27;)
 </code></pre>
-<pre class='out'>                                            baseline  exactitude (%)
-0                                   toujours présent           81.75
-1   règle du délai — absent si le délai dépasse 30 j           79.92
-2  absent si ce patient a déjà manqué un rendez-vous           78.65
-3                                la famille linéaire           82.21
-4                                 le modèle du cours           82.51
-→ le modèle dépasse la réponse constante de +0.76 point,
-  soit 3.4 erreurs-types de ce jeu de validation (0.22 point).
-  la règle du délai, elle, fait 79.92 % : elle alerte sur
-  1572 lignes et perd contre la réponse constante.
-  et la règle qui ne dirait jamais rien ferait 81.75 % —
-  exactement la réponse constante. Une règle en place se mesure avant d’être opposée
-  à un modèle ; ce que cela dit d’une exactitude reste ouvert.
-</pre>
+
 <pre>### Le rituel : annoncer avant de mesurer
 </pre>
 <pre><code># l&#x27;horloge entre ici : c&#x27;est elle qui rend une prédiction vérifiable
@@ -376,9 +336,7 @@ assert (VN, FP, FN, VP) == tuple(int(v) for v in confirme), &#x27;les quatre cas
 print(f&#x27;les quatre cases, vérifiées : VP {VP} · FP {FP} · FN {FN} · VN {VN}&#x27;)
 print(f&#x27;→ {FP + FN} erreurs en tout : {FP} fausses alertes, {FN} absences manquées.&#x27;)
 </code></pre>
-<pre class='out'>les quatre cases, vérifiées : VP 580 · FP 353 · FN 4891 · VN 24155
-→ 5244 erreurs en tout : 353 fausses alertes, 4891 absences manquées.
-</pre>
+
 <pre><code># la même matrice, coloriée — c’est la forme qu’on lit d’un coup d’œil
 import numpy as np
 import matplotlib.pyplot as plt
@@ -400,8 +358,7 @@ ax.set_title(&#x27;la matrice coloriée : vert = juste, rouge = erreur&#x27;)
 plt.tight_layout()
 plt.show()
 </code></pre>
-<pre class='out'>&lt;cellule 11&gt;:20: UserWarning: FigureCanvasAgg is non-interactive, and thus cannot be shown
-</pre>
+
 <pre>### Les six métriques, depuis la même matrice
 
 **Couche — la métrique.** Six questions posées au même tableau.
@@ -438,8 +395,7 @@ figure.suptitle(&#x27;les cases du numérateur (foncé) et du dénominateur (cla
 plt.tight_layout()
 plt.show()
 </code></pre>
-<pre class='out'>&lt;cellule 12&gt;:25: UserWarning: FigureCanvasAgg is non-interactive, and thus cannot be shown
-</pre>
+
 <pre>| Métrique | Formule | En mots | La bonne métrique quand… | Exemple évident |
 |---|---|---|---|---|
 | **exactitude** | (VP + VN) / tout | la part de bonnes réponses | les deux classes sont équilibrées | compter les pièces bonnes et mauvaises sur une chaîne |
@@ -448,6 +404,68 @@ plt.show()
 | **rappel** | VP / (VP + FN) | sur les absences réelles, la part trouvée | rater coûte plus cher qu’alerter | un dépistage médical : deux examens inutiles valent mieux qu’un cas raté |
 | **spécificité** | VN / (VN + FP) | sur les patients venus, la part que l’on n’a pas alertée à tort | les présences sont la majorité | un filtre anti-spam qui ne doit jamais bloquer un vrai courriel |
 | **F1** | 2 × précision × rappel / (précision + rappel) | la moyenne harmonique de la précision et du rappel | on ne sait pas laquelle des deux erreurs payer | comparer deux modèles sur un problème nouveau |
+</pre>
+<pre>### La démonstration, métrique par métrique
+
+Nos quatre cases : **VP = 580**, **FP = 353**, **FN = 4 891**, **VN = 24 155**, sur 29 979 lignes de
+contrôle. Chaque métrique est recalculée à la main sur ces quatre nombres.
+
+**Exactitude.**
+
+$$\text{exactitude} = \frac{\text{bonnes réponses}}{\text{toutes les lignes}}$$
+
+Ce qu&#x27;elle calcule : la part de lignes où le modèle a vu juste, toutes classes confondues.
+Quand c&#x27;est la bonne métrique : les deux classes sont équilibrées et une erreur en vaut une autre.
+Sur notre matrice : (580 + 24 155) / 29 979 = **82,51 %**. Ne rien faire vaut 81,75 % : l&#x27;écart
+tient en 0,76 point.
+
+**Exactitude équilibrée.**
+
+$$\text{équilibrée} = \frac{1}{2}\left(\frac{\text{absences trouvées}}{\text{absences réelles}} + \frac{\text{présences non alertées}}{\text{présences réelles}}\right)$$
+
+Ce qu&#x27;elle calcule : la moyenne des deux taux de réussite, un par classe — chaque classe pèse
+autant, quelle que soit sa fréquence.
+Quand c&#x27;est la bonne métrique : les classes sont très déséquilibrées et on ne veut pas que la
+classe majoritaire décide seule.
+Sur notre matrice : (10,60 % + 98,56 %) / 2 = **54,58 %**. L&#x27;exactitude affichait 82,51 % :
+l&#x27;écart entre les deux est la mesure du déséquilibre.
+
+**Précision.**
+
+$$\text{précision} = \frac{\text{alertes justes}}{\text{alertes lancées}}$$
+
+Ce qu&#x27;elle calcule : sur les alertes lancées, la part qui étaient justes.
+Quand c&#x27;est la bonne métrique : une alerte coûte cher — on ne dérange pas pour rien.
+Sur notre matrice : 580 / (580 + 353) = 580 / 933 = **62,17 %**. Sur cent alertes, soixante-deux
+sont justes.
+
+**Rappel.**
+
+$$\text{rappel} = \frac{\text{absences trouvées}}{\text{absences réelles}}$$
+
+Ce qu&#x27;elle calcule : sur les absences réelles, la part que le modèle a trouvées.
+Quand c&#x27;est la bonne métrique : rater coûte plus cher qu&#x27;alerter.
+Sur notre matrice : 580 / (580 + 4 891) = 580 / 5 471 = **10,60 %**. Sur dix absences, une est
+trouvée : c&#x27;est le chiffre le plus dur de la séance.
+
+**Spécificité.**
+
+$$\text{spécificité} = \frac{\text{présences non alertées}}{\text{présences réelles}}$$
+
+Ce qu&#x27;elle calcule : sur les patients venus, la part que l&#x27;on n&#x27;a pas alertée à tort.
+Quand c&#x27;est la bonne métrique : les présences sont la majorité et on veut les laisser tranquilles.
+Sur notre matrice : 24 155 / (24 155 + 353) = 24 155 / 24 508 = **98,56 %**. Sur cent patients
+venus, un est alerté à tort.
+
+**F1.**
+
+$$F_1 = \frac{2 \cdot \text{précision} \cdot \text{rappel}}{\text{précision} + \text{rappel}}$$
+
+où P est la précision et R le rappel. Ce qu&#x27;il calcule : la moyenne **harmonique** des deux.
+Quand c&#x27;est la bonne métrique : on ne sait pas laquelle des deux erreurs payer. On veut un seul
+chiffre, qui ne laisse pas un des deux s&#x27;effondrer.
+Sur notre matrice : 2 × 0,6217 × 0,1060 / (0,6217 + 0,1060) = **18,11 %**. La moyenne ordinaire
+donnerait 36 % : l&#x27;écart est la punition du déséquilibre entre précision et rappel.
 </pre>
 <pre><code># les six métriques, recalculées depuis les quatre cases — jamais depuis une autre source
 exactitude = (VP + VN) / (VP + FP + FN + VN)
@@ -488,19 +506,7 @@ plt.show()
 print(&#x27;→ l’exactitude compte les bons pronostics ; le rappel, les absences trouvées ;&#x27;)
 print(&#x27;  la précision, la part d’alertes justes. Choisir l’une, c’est choisir ce qu’on veut.&#x27;)
 </code></pre>
-<pre class='out'>                métrique  ...                                       lecture
-0             exactitude  ...             83 bonnes réponses sur 100 lignes
-1  exactitude équilibrée  ...  55 : la moyenne des deux taux, un par classe
-2              précision  ...                    sur 100 alertes, 62 justes
-3                 rappel  ...         sur 100 absences réelles, 11 trouvées
-4            spécificité  ...       sur 100 patients venus, 1 alerté à tort
-5                     F1  ...   18 : le compromis entre précision et rappel
 
-[6 rows x 4 columns]
-&lt;cellule 13&gt;:36: UserWarning: FigureCanvasAgg is non-interactive, and thus cannot be shown
-→ l’exactitude compte les bons pronostics ; le rappel, les absences trouvées ;
-  la précision, la part d’alertes justes. Choisir l’une, c’est choisir ce qu’on veut.
-</pre>
 <pre>### Quand l’exactitude répond à une autre question
 
 **Couche — la métrique.** Le piège de celle qui ne dit rien de la décision.
@@ -535,16 +541,7 @@ print(&#x27;  — une alerte sur cinq est juste.&#x27;)
 print(f&#x27;  le modèle : {ex_modele:.2f} % d’exactitude, {rap_modele:.2f} % de rappel.&#x27;)
 print(&#x27;  Un chiffre qui récompense le modèle qui ne fait rien n’est pas une mesure : c’est un piège.&#x27;)
 </code></pre>
-<pre class='out'>         stratégie  exactitude (%)  précision (%)  rappel (%)
-0  n’alerte jamais           81.75            NaN         0.0
-1  alerte toujours           18.25          18.25       100.0
-2        le modèle           82.51          62.17        10.6
-→ ne rien faire : 81.75 % d’exactitude et 0 absence trouvée.
-  alerter toujours : 100 % de rappel, mais 18.25 % de précision
-  — une alerte sur cinq est juste.
-  le modèle : 82.51 % d’exactitude, 10.60 % de rappel.
-  Un chiffre qui récompense le modèle qui ne fait rien n’est pas une mesure : c’est un piège.
-</pre>
+
 <pre>### Ce que le rang mesure, et ce que la perte mesure
 
 **Couches — la métrique et la perte.** Deux façons de juger, et ce qu’elles ignorent.
@@ -601,10 +598,7 @@ aire_pr = average_precision_score(yval, probabilites)
 print(f&#x27;→ la PR-AUC vaut {aire_pr / yval.mean():.1f} fois le taux de base ({yval.mean():.3f}) :&#x27;)
 print(&#x27;  c’est ce rapport qui parle, pas l’aire seule.&#x27;)
 </code></pre>
-<pre class='out'>&lt;cellule 15&gt;:29: UserWarning: FigureCanvasAgg is non-interactive, and thus cannot be shown
-→ la PR-AUC vaut 2.2 fois le taux de base (0.182) :
-  c’est ce rapport qui parle, pas l’aire seule.
-</pre>
+
 <pre><code># le même nombre d’erreurs, vu par les deux métriques — c’est là que la ROC flatte
 lignes = []
 for seuil in np.round(np.arange(0.10, 0.71, 0.10), 2):
@@ -633,23 +627,7 @@ for nom, famille, table in (
 print(&#x27;→ trois familles quasi égales en exactitude ne se valent pas en PR-AUC :&#x27;)
 print(&#x27;  la métrique choisie décide du classement.&#x27;)
 </code></pre>
-<pre class='out'>   seuil  alertes  précision (%)  taux de faux positifs (%)
-0    0.1    19092           25.8                      57.81
-1    0.2    12005           31.6                      33.50
-2    0.3     4858           40.6                      11.77
-3    0.4     1894           52.9                       3.64
-4    0.5      933           62.2                       1.44
-5    0.6      505           70.9                       0.60
-6    0.7      187           75.4                       0.19
-→ le taux de faux positifs divise par 24,508 patients venus ;
-  la précision divise par les alertes — de 187 à 19092 selon le seuil. Même erreur, poids différent.
-le même plafond, relu en PR-AUC
-  arbres (boosting)  PR-AUC 0.4011
-  un arbre unique    PR-AUC 0.3551
-  modèle linéaire    PR-AUC 0.3671
-→ trois familles quasi égales en exactitude ne se valent pas en PR-AUC :
-  la métrique choisie décide du classement.
-</pre>
+
 <pre>### La perte : ce que le modèle optimise
 
 **Couche — la perte.** Le chiffre que l’entraînement voit, et que le rapport ne montre jamais.
@@ -658,10 +636,10 @@ le même plafond, relu en PR-AUC
 **perte**. Elle n’apparaît jamais dans un rapport : elle sert pendant l’apprentissage. La séance 3
 l’a montrée en train de descendre, à côté des scores.
 
-**Deux pertes, deux façons de punir.** La **log-loss** vaut `−log(p)` pour la vraie classe :
-elle punit très fort une annonce confiante et fausse : pour un patient absent, annoncer 0,01
-coûte 4,6. Elle ne coûte presque rien à une annonce juste : annoncer 0,99, pour ce même patient
-absent, coûte 0,01. Le **score de Brier** vaut `(p − y)²` : plus doux, il mesure l’écart au carré.
+**La log-loss, et ce qu’elle punit.** Elle vaut `−log(p)` pour la vraie classe. Elle punit
+très fort une annonce confiante et fausse : pour un patient absent, annoncer 0,01 coûte 4,6.
+Elle ne coûte presque rien à une annonce juste et confiante : annoncer 0,99, pour ce même
+patient absent, coûte 0,01.
 
 **Le linéaire descend la perte par itérations.** La régression logistique calcule la pente de la
 log-loss sur tout l’échantillon, et descend d’un cran à chaque pas. Plus de pas, une perte plus
@@ -689,89 +667,85 @@ for pas in (1, 2, 3, 5, 8):
 print(&#x27;→ la perte du linéaire baisse avec les pas, puis se stabilise.&#x27;)
 print(&#x27;  Un arbre unique s’entraîne en une fois : pas d’itérations à suivre.&#x27;)
 </code></pre>
-<pre class='out'>C:\Users\marcy\AppData\Roaming\Python\Python314\site-packages\sklearn\linear_model\_glm\_newton_solver.py:433: ConvergenceWarning: Newton solver did not converge after 1 iterations.
-  warnings.warn(
-  pas 1 · log-loss validation 0.4458
-C:\Users\marcy\AppData\Roaming\Python\Python314\site-packages\sklearn\linear_model\_glm\_newton_solver.py:433: ConvergenceWarning: Newton solver did not converge after 2 iterations.
-  warnings.warn(
-  pas 2 · log-loss validation 0.4348
-C:\Users\marcy\AppData\Roaming\Python\Python314\site-packages\sklearn\linear_model\_glm\_newton_solver.py:433: ConvergenceWarning: Newton solver did not converge after 3 iterations.
-  warnings.warn(
-  pas 3 · log-loss validation 0.4346
-  pas 5 · log-loss validation 0.4346
-  pas 8 · log-loss validation 0.4346
-→ la perte du linéaire baisse avec les pas, puis se stabilise.
-  Un arbre unique s’entraîne en une fois : pas d’itérations à suivre.
+
+<pre>### La démonstration, perte par perte
+
+**Log-loss (entropie croisée binaire).**
+
+$$\text{log-loss} = -\frac{1}{N}\sum_{i=1}^{N}\left[y_i \log p_i + (1-y_i)\log(1-p_i)\right]$$
+$$= -\frac{1}{N}\sum_{i=1}^{N}\log\left(\text{probabilité annoncée pour la vraie classe}\right)$$
+
+où $y_i$ est la vraie classe et $p_i$ la probabilité annoncée pour la classe 1.
+Ce qu&#x27;elle calcule : la qualité des **probabilités**, pas seulement la décision finale.
+Quand : toute classification qui annonce une probabilité — c&#x27;est la perte des modèles du cours.
+Sur notre matrice : **0,4139** pour le modèle, **0,4752** pour la probabilité constante.
+Sur quatre patients (1, 1, 0, 0), avec les probabilités 0,90 · 0,05 · 0,80 · 0,30 : **1,2668**.
+Ce chiffre est calculé à la main, puis vérifié contre la bibliothèque.
+
+**Erreur au carré (régression).**
+
+$$\text{erreur} = (\text{valeur vraie} - \text{valeur prévue})^2$$
+
+Ce qu&#x27;elle calcule : l&#x27;écart réel entre la valeur prévue et la valeur vraie.
+Quand : la cible est un **nombre**, pas une classe.
+Sur notre cible numérique : prévoir 35 quand la vérité est 37 coûte 4 ; prévoir 30 coûte 49.
+L&#x27;erreur au carré fait payer cher l&#x27;écart grand.
+
+**Impureté (Gini), pour l&#x27;arbre.**
+
+$$\text{Gini} = 1 - \sum_{k}\left(\text{part de la classe } k\right)^2$$
+
+Ce qu&#x27;elle calcule : le mélange d&#x27;une feuille — 0 si la feuille est pure.
+Quand : **construire** un arbre, pas juger un modèle.
+Sur une feuille à 30 % d&#x27;absents et 70 % de présents : 1 − (0,3² + 0,7²) = **0,42** ; une feuille
+pure vaut 0.
+
+**À retenir.** On **entraîne** avec la perte — dérivable, sensible à la confiance. On **évalue**
+avec la métrique — lisible. Une exactitude qui monte alors que la log-loss de validation remonte
+est le signe d&#x27;un modèle trop confiant : le sur-apprentissage, vu sur deux chiffres.
 </pre>
-<pre><code># la forme des deux pertes : ce qu’elles infligent à une annonce confiante
+<pre><code># la forme de la log-loss : ce qu’elle inflige à une annonce confiante
 import numpy as np
 import matplotlib.pyplot as plt
 
 p = np.linspace(0.01, 0.99, 200)
-figure, (gauche, droite) = plt.subplots(1, 2, figsize=(10.4, 3.6))
-
-gauche.plot(p, -np.log(p), label=&#x27;patient absent (y = 1)&#x27;, color=&#x27;#b5651d&#x27;)
-gauche.plot(p, -np.log(1 - p), label=&#x27;patient venu (y = 0)&#x27;, color=&#x27;#2b6cb0&#x27;)
-gauche.set_xlabel(&#x27;probabilité annoncée pour un absent&#x27;); gauche.set_ylabel(&#x27;−log(p)&#x27;)
-gauche.set_ylim(0, 5); gauche.set_title(&#x27;la log-loss&#x27;); gauche.legend(fontsize=8)
-
-droite.plot(p, (p - 1) ** 2, label=&#x27;patient absent (y = 1)&#x27;, color=&#x27;#b5651d&#x27;)
-droite.plot(p, p ** 2, label=&#x27;patient venu (y = 0)&#x27;, color=&#x27;#2b6cb0&#x27;)
-droite.set_xlabel(&#x27;probabilité annoncée pour un absent&#x27;); droite.set_ylabel(&#x27;(p − y)²&#x27;)
-droite.set_ylim(0, 1.1); droite.set_title(&#x27;le score de Brier&#x27;); droite.legend(fontsize=8)
+figure, axe = plt.subplots(figsize=(7.4, 3.6))
+axe.plot(p, -np.log(p), label=&#x27;patient absent (y = 1)&#x27;, color=&#x27;#b5651d&#x27;)
+axe.plot(p, -np.log(1 - p), label=&#x27;patient venu (y = 0)&#x27;, color=&#x27;#2b6cb0&#x27;)
+axe.set_xlabel(&#x27;probabilité annoncée pour un absent&#x27;); axe.set_ylabel(&#x27;−log(p)&#x27;)
+axe.set_ylim(0, 5); axe.set_title(&#x27;la log-loss&#x27;); axe.legend(fontsize=8)
 plt.tight_layout()
 plt.show()
-print(&#x27;→ à droite, se tromper coûte au plus 1 ; à gauche, une annonce confiante et fausse&#x27;)
-print(&#x27;  coûte sans plafond. C’est pour cela que la log-loss est la perte des classifieurs.&#x27;)
+print(&#x27;→ une annonce confiante et fausse coûte sans plafond : c’est pour cela que la&#x27;)
+print(&#x27;  log-loss est la perte des classifieurs.&#x27;)
 </code></pre>
-<pre class='out'>&lt;cellule 18&gt;:18: UserWarning: FigureCanvasAgg is non-interactive, and thus cannot be shown
-→ à droite, se tromper coûte au plus 1 ; à gauche, une annonce confiante et fausse
-  coûte sans plafond. C’est pour cela que la log-loss est la perte des classifieurs.
-</pre>
+
 <pre><code># quatre patients, calculés à la main, puis vérifiés contre la bibliothèque
-from sklearn.metrics import log_loss, brier_score_loss
+from sklearn.metrics import log_loss
 
 verites = np.array([1, 1, 0, 0])                # deux absents, deux venus
 annonces = np.array([0.90, 0.05, 0.80, 0.30])   # la probabilité d’absence annoncée
 
 logloss_main = -np.mean(np.where(verites == 1, np.log(annonces), np.log(1 - annonces)))
-brier_main = np.mean((annonces - verites) ** 2)
 assert np.isclose(logloss_main, log_loss(verites, annonces)), &#x27;la log-loss ne concorde pas&#x27;
-assert np.isclose(brier_main, brier_score_loss(verites, annonces)), &#x27;le Brier ne concorde pas&#x27;
 
 for v, a in zip(verites, annonces):
     etat = &#x27;absent&#x27; if v == 1 else &#x27;venu&#x27;
     cout_log = -np.log(a) if v == 1 else -np.log(1 - a)
-    print(f&#x27;  patient {etat}, annoncé {a:.2f} : −log {cout_log:5.2f}, Brier {(a - v) ** 2:5.3f}&#x27;)
-print(f&#x27;→ moyenne : log-loss {logloss_main:.4f}, Brier {brier_main:.4f} — les deux concordent.&#x27;)
+    print(f&#x27;  patient {etat}, annoncé {a:.2f} : −log {cout_log:5.2f}&#x27;)
+print(f&#x27;→ moyenne : log-loss {logloss_main:.4f} — calculée à la main, vérifiée.&#x27;)
 </code></pre>
-<pre class='out'>  patient absent, annoncé 0.90 : −log  0.11, Brier 0.010
-  patient absent, annoncé 0.05 : −log  3.00, Brier 0.902
-  patient venu, annoncé 0.80 : −log  1.61, Brier 0.640
-  patient venu, annoncé 0.30 : −log  0.36, Brier 0.090
-→ moyenne : log-loss 1.2668, Brier 0.4106 — les deux concordent.
-</pre>
+
 <pre><code># le modèle contre la probabilité constante, sur nos données
 constante = np.full(len(yval), yval.mean())
-print(&#x27;les deux pertes, sur nos données \n&#x27;)
-print(f&#x27;  log-loss du modèle                   : {log_loss(yval, probabilites):.4f}&#x27;)
-print(f&#x27;  log-loss de la probabilité constante : {log_loss(yval, constante):.4f}&#x27;)
-print(f&#x27;  Brier du modèle                      : {brier_score_loss(yval, probabilites):.4f}&#x27;)
-print(f&#x27;  Brier de la probabilité constante    : {brier_score_loss(yval, constante):.4f}&#x27;)
-print(&#x27;→ les deux pertes baissent quand les probabilités annoncées sont justes,&#x27;)
+print(&#x27;la log-loss, sur nos données \n&#x27;)
+print(f&#x27;  du modèle                   : {log_loss(yval, probabilites):.4f}&#x27;)
+print(f&#x27;  de la probabilité constante : {log_loss(yval, constante):.4f}&#x27;)
+print(&#x27;→ la log-loss baisse quand les probabilités annoncées sont justes,&#x27;)
 print(&#x27;  pas quand le classement est bon. Une probabilité juste n’est pas une&#x27;)
 print(&#x27;  probabilité calibrée : la courbe de fiabilité se trace en séance 11.&#x27;)
 </code></pre>
-<pre class='out'>les deux pertes, sur nos données 
 
-  log-loss du modèle                   : 0.4139
-  log-loss de la probabilité constante : 0.4752
-  Brier du modèle                      : 0.1306
-  Brier de la probabilité constante    : 0.1492
-→ les deux pertes baissent quand les probabilités annoncées sont justes,
-  pas quand le classement est bon. Une probabilité juste n’est pas une
-  probabilité calibrée : la courbe de fiabilité se trace en séance 11.
-</pre>
 <pre>&gt; **Question →** `Devoir_maison_2.ipynb`, **question 10 (carnet J4)** — vos six métriques, les deux aires, et votre log-loss.
 </pre>
 <pre>### Le coût, et le seuil
@@ -804,12 +778,7 @@ print(f&#x27;  pour un patient de probabilité p, alerter coûte 25 × (1 − p)
 print(f&#x27;  on alerte tant que 25 × (1 − p) &lt; 100 × p, soit p &gt; 25 / (25 + 100) = {seuil_theorique:.2f}&#x27;)
 print(&#x27;  → ce chiffre suppose que les probabilités annoncées veulent dire quelque chose.&#x27;)
 </code></pre>
-<pre class='out'>la dérivation du seuil 
 
-  pour un patient de probabilité p, alerter coûte 25 × (1 − p) ; ne pas alerter, 100 × p
-  on alerte tant que 25 × (1 − p) &lt; 100 × p, soit p &gt; 25 / (25 + 100) = 0.20
-  → ce chiffre suppose que les probabilités annoncées veulent dire quelque chose.
-</pre>
 <pre><code># la courbe du coût, seuil par seuil — et le seuil appris, choisi hors de la mesure
 from sklearn.model_selection import cross_val_predict
 
@@ -843,30 +812,7 @@ print(&#x27;  — celui-là est choisi et jugé sur le même jeu : il gagne par 
 noter(&quot;le seuil de coût minimal&quot;, &quot;la courbe du coût, seuil par seuil&quot;,
       &quot;un seuil plus bas que 0,50&quot;, float(seuil_appris_cout))
 </code></pre>
-<pre class='out'>                      essai  ...   écrit à
-0  le seuil de coût minimal  ...  11:40:31
 
-[1 rows x 4 columns]
-   seuil  alertes  exactitude (%)    coût
-0   0.04    26753           28.27  545925
-1   0.14    16926           56.37  387875
-2   0.24     8605           72.83  391475
-3   0.34     3288           80.77  442175
-4   0.44     1350           82.40  484350
-5   0.54      744           82.50  505200
-6   0.64      360           82.25  524225
-7   0.74       90           81.90  540850
-8   0.84        0           81.75  547100
-9   0.94        0           81.75  547100
-→ le seuil appris sur l’apprentissage seul : 0.18
-  la formule                                 : 0.20
-  le minimum de la courbe de contrôle        : 0.18
-  — celui-là est choisi et jugé sur le même jeu : il gagne par construction.
-                  hypothèse  ... prédiction écrite avant ?
-0  le seuil de coût minimal  ...           oui, à 11:40:31
-
-[1 rows x 5 columns]
-</pre>
 <pre><code># la courbe, tracée : ce que l’apprentissage choisit, ce que le contrôle vérifie
 import matplotlib.pyplot as plt
 
@@ -883,8 +829,7 @@ axe.legend(fontsize=8)
 plt.tight_layout()
 plt.show()
 </code></pre>
-<pre class='out'>&lt;cellule 23&gt;:15: UserWarning: FigureCanvasAgg is non-interactive, and thus cannot be shown
-</pre>
+
 <pre><code># le coût empilé : la part des fausses alertes, la part des absences manquées
 empile = []
 for seuil in courbe[&#x27;seuil&#x27;]:
@@ -904,8 +849,7 @@ axe.legend(fontsize=8, loc=&#x27;upper center&#x27;)
 plt.tight_layout()
 plt.show()
 </code></pre>
-<pre class='out'>&lt;cellule 24&gt;:18: UserWarning: FigureCanvasAgg is non-interactive, and thus cannot be shown
-</pre>
+
 <pre><code># deux décisions, deux matrices : ce que le seuil déplace
 def quatre_cases(decision):
     return {&#x27;VP&#x27;: int(((decision == 1) &amp; (yval == 1)).sum()),
@@ -925,12 +869,7 @@ display(comparaison)
 print(f&#x27;→ {au_seuil[&quot;VP&quot;] - a_cinquante[&quot;VP&quot;]} absences trouvées en plus, au prix de&#x27;)
 print(f&#x27;  {au_seuil[&quot;FP&quot;] - a_cinquante[&quot;FP&quot;]} fausses alertes en plus.&#x27;)
 </code></pre>
-<pre class='out'>            décision    VP    FP    FN     VN  coût pour 1 000 patients
-0         seuil 0,50   580   353  4891  24155                     16609
-1  seuil appris 0.18  4127  9532  1344  14976                     12432
-→ 3547 absences trouvées en plus, au prix de
-  9179 fausses alertes en plus.
-</pre>
+
 <pre><code># le seuil n’est utile que s’il entre dans la fonction qui décide
 def decider_au_seuil(X, seuil=seuil_appris_cout):
     return (modele.predict_proba(X)[:, 1] &gt; seuil).astype(int)
@@ -940,10 +879,7 @@ print(f&#x27;→ .predict coupe à 0,50 : {int(predit.sum())} alertes.&#x27;)
 print(f&#x27;  decider_au_seuil coupe à {seuil_appris_cout:.2f} : {int(alertes_livrees.sum())} alertes.&#x27;)
 print(&#x27;  Le gain mesuré n’existe que si le pipeline appelle cette fonction, pas .predict.&#x27;)
 </code></pre>
-<pre class='out'>→ .predict coupe à 0,50 : 933 alertes.
-  decider_au_seuil coupe à 0.18 : 13659 alertes.
-  Le gain mesuré n’existe que si le pipeline appelle cette fonction, pas .predict.
-</pre>
+
 <pre>**Le seuil n’est utile que s’il entre dans la fonction qui décide.** `predict` coupe à 0,50 ;
 pour livrer le gain mesuré, la fonction que le pipeline appelle doit prendre le seuil appris.
 </pre>
@@ -979,27 +915,7 @@ display(par_exactitude)
 print(&#x27;le classement réel (par coût)&#x27;)
 display(par_cout)
 </code></pre>
-<pre class='out'>le classement affiché (par exactitude)
-               stratégie  exactitude (%)    coût
-0  le modèle, seuil 0.50           82.51  497925
-1  le modèle, seuil 0.40           82.11  469325
-2        n’alerte jamais           81.75  547100
-3  le modèle, seuil 0.30           78.72  421800
-4  le modèle, seuil 0.20           67.02  372850
-5    seuil appris (0.18)           63.72  372700
-6  le modèle, seuil 0.10           50.92  408900
-7        alerte toujours           18.25  612700
-le classement réel (par coût)
-               stratégie  exactitude (%)    coût
-0    seuil appris (0.18)           63.72  372700
-1  le modèle, seuil 0.20           67.02  372850
-2  le modèle, seuil 0.10           50.92  408900
-3  le modèle, seuil 0.30           78.72  421800
-4  le modèle, seuil 0.40           82.11  469325
-5  le modèle, seuil 0.50           82.51  497925
-6        n’alerte jamais           81.75  547100
-7        alerte toujours           18.25  612700
-</pre>
+
 <pre><code># les deux classements, en pente : vert quand la stratégie gagne des places
 import matplotlib.pyplot as plt
 
@@ -1018,8 +934,7 @@ axe.set_yticks([]); axe.set_title(&#x27;le même modèle, deux classements&#x27;
 plt.tight_layout()
 plt.show()
 </code></pre>
-<pre class='out'>&lt;cellule 28&gt;:17: UserWarning: FigureCanvasAgg is non-interactive, and thus cannot be shown
-</pre>
+
 <pre><code># ce que coûte l’erreur de métrique : le regret, ramené à 1 000 patients
 vainqueur_affiche = par_exactitude.iloc[0][&#x27;stratégie&#x27;]
 vainqueur_reel = par_cout.iloc[0][&#x27;stratégie&#x27;]
@@ -1032,11 +947,7 @@ print(f&#x27;le coût place en tête       : {vainqueur_reel}&#x27;)
 print(f&#x27;→ déployer le premier coûte {regret:,} de plus que le second sur ce jeu,&#x27;.replace(&#x27;,&#x27;, &#x27; &#x27;))
 print(f&#x27;  soit {round(regret * 1000 / len(yval)):,} unités pour 1 000 patients.&#x27;.replace(&#x27;,&#x27;, &#x27; &#x27;))
 </code></pre>
-<pre class='out'>l’exactitude place en tête : le modèle, seuil 0.50
-le coût place en tête       : seuil appris (0.18)
-→ déployer le premier coûte 125 225 de plus que le second sur ce jeu 
-  soit 4 177 unités pour 1 000 patients.
-</pre>
+
 <pre>&gt; **Question →** `Devoir_maison_2.ipynb`, **question 12 (carnet J4)** — l’écart entre la métrique affichée et le coût réel, sur **vos** prédictions.
 </pre>
 <pre>### Quand ne pas faire de ML
@@ -1080,18 +991,7 @@ print(&#x27;→ la meilleure exactitude de cette échelle n’est pas le coût l
 print(&#x27;  le choix se fait sur la décision, et la décision se paie.&#x27;)
 print(&#x27;  Trois situations, dont une du sujet du cours : c’est ce que le devoir vous demande.&#x27;)
 </code></pre>
-<pre class='out'>                                            solution  ...  gain vs référence (%)
-0                       ne rien faire (la référence)  ...                    0.0
-1  règle du délai : absent si le délai dépasse 30...  ...                    4.5
-2  règle de l’historique : absent si ce patient a...  ...                    9.4
-3                                la famille linéaire  ...                    6.5
-4       le modèle (arbres entraînés par corrections)  ...                    9.0
 
-[5 rows x 4 columns]
-→ la meilleure exactitude de cette échelle n’est pas le coût le plus bas :
-  le choix se fait sur la décision, et la décision se paie.
-  Trois situations, dont une du sujet du cours : c’est ce que le devoir vous demande.
-</pre>
 <pre>**Une démonstration, sur un autre jeu.** Des capteurs de machine enregistrent la température,
 la vitesse, le couple et l’usure ; 3,4 % des lignes signalent une panne. Une règle de deux lignes
 — le produit du couple et de l’usure — est comparée à un modèle qui lit les cinq capteurs.
@@ -1137,13 +1037,7 @@ print(f&#x27;→ la règle est précise, mais elle laisse passer {100 - 100 * re
 print(&#x27;  des pannes : elle coûte plus cher que le modèle.&#x27;)
 print(&#x27;  La mesurer avant de l’opposer était le point de la démonstration.&#x27;)
 </code></pre>
-<pre class='out'>  lignes : 10000, pannes : 339 (3.4 %)
-  la règle écrite à la main  F1  46.8 % · rappel  32.4 % · précision  84.6 % · coût  7050
-  le modèle, cinq capteurs   F1  72.2 % · rappel  63.7 % · précision  83.3 % · coût  4025
-→ la règle est précise, mais elle laisse passer 68 %
-  des pannes : elle coûte plus cher que le modèle.
-  La mesurer avant de l’opposer était le point de la démonstration.
-</pre>
+
 <pre>&gt; **Question →** `Devoir_maison_2.ipynb`, **question 13 (carnet J4)** — trois situations, et ce que vous feriez **avant** d’entraîner un modèle.
 </pre>
 <pre>### Et quand la cible est un nombre ?
@@ -1190,11 +1084,7 @@ prevision = controle[&#x27;jour_semaine&#x27;].map(moyenne_par_jour).to_numpy()
 verite = controle[&#x27;nb_rendez_vous&#x27;].to_numpy()
 ecarts = verite - prevision
 </code></pre>
-<pre class='out'>la table d’activité 
 
-  lignes : 87600 — une par clinique et par jour
-  jours à zéro rendez-vous : 12560 (14.3 %) — la clinique est fermée
-</pre>
 <pre><code># la série, la coupure, et la prévision face à la réalité
 import matplotlib.pyplot as plt
 
@@ -1210,8 +1100,7 @@ bas.set_xlabel(&#x27;date&#x27;)
 plt.tight_layout()
 plt.show()
 </code></pre>
-<pre class='out'>&lt;cellule 33&gt;:14: UserWarning: FigureCanvasAgg is non-interactive, and thus cannot be shown
-</pre>
+
 <pre>| Métrique | Formule | Lecture en rendez-vous | Quand l’utiliser |
 |---|---|---|---|
 | **MAE** | moyenne des écarts absolus | « on se trompe de X rendez-vous en moyenne » | la lecture la plus simple, pour une équipe |
@@ -1239,16 +1128,7 @@ print(f&#x27;→ {int((~ouverts).sum())} jours de contrôle valent zéro rendez-
 print(&#x27;  diviserait par zéro. Il faut donc une erreur qui se compare au naïf, pas&#x27;)
 print(&#x27;  au zéro — c’est le MASE, en séance 6.&#x27;)
 </code></pre>
-<pre class='out'>  MAE   erreur moyenne, en rendez-vous  :  13.59
-  RMSE  punit les grosses erreurs       :  16.14
-  RMSLE erreur relative, en logarithme  :  0.254
-  R²    part de la variance expliquée   :  0.645
-  MAPE  erreur relative, jours ouverts  :   22.9 %
 
-→ 31 jours de contrôle valent zéro rendez-vous : le MAPE y
-  diviserait par zéro. Il faut donc une erreur qui se compare au naïf, pas
-  au zéro — c’est le MASE, en séance 6.
-</pre>
 <pre><code># ce que le MAPE ferait sur les jours fermés — la division par zéro, montrée
 fermes = verite == 0
 print(f&#x27;  jours fermés dans le contrôle : {int(fermes.sum())} sur {len(verite)}&#x27;)
@@ -1262,11 +1142,7 @@ axe.set_ylabel(&#x27;jours&#x27;)
 plt.tight_layout()
 plt.show()
 </code></pre>
-<pre class='out'>  jours fermés dans le contrôle : 31 sur 219
-  un MAPE calculé sur tous les jours diviserait par zéro 31 fois.
-  → c’est pour cela que la ligne du MAPE précise « jours ouverts ».
-&lt;cellule 35&gt;:12: UserWarning: FigureCanvasAgg is non-interactive, and thus cannot be shown
-</pre>
+
 <pre>### Ce qu’on retient
 
 **Les trois couches, en une page.**
