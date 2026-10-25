@@ -75,6 +75,30 @@ volontaire : votre travail est de **mesurer** ce que chaque variable apporte, pa
 
 Le pipeline doit tourner **en moins de 10 minutes sur CPU**, sans GPU, avec `scikit-learn` seul.
 
+## Ce que l'enseignant garde — et ce que vous pouvez demander
+
+**Vous recevez toutes les lignes, sauf mention contraire ci-dessous.** Ce qui reste chez l'enseignant
+n'est **jamais** une partie des données : c'est **la cible** des lignes que vous devez estimer, et elle
+seule. Sans elle, il n'y aurait rien à prédire.
+
+| | |
+|---|---|
+| Fichier retenu | **`verite.csv`** |
+| Lignes | **15 204** |
+| Colonnes | `ID`, `TARGET` |
+| Contenu | l'issue réelle des clients de `a_decider.csv` |
+
+**Vous n'y avez pas accès, et aucune copie ne doit circuler.** C'est l'enseignant qui mesure votre
+rendu contre ce fichier.
+
+### La table source complète est disponible sur demande
+
+Les données de ce sujet viennent d'une **compétition publique**. Si vous voulez travailler sur la
+**table d'origine entière** — plus de lignes, plus de variables, ou les fichiers annexes — **demandez-la
+à l'enseignant** : il l'a, et il peut vous la fournir pour un usage d'étude. Précisez dans votre
+journal ce que vous en avez fait, et **restez sur la même découpe** : le rendu final porte sur les
+lignes de `a_estimer.csv` / `a_decider.csv` / `horizon.csv`, pas sur la table complète.
+
 ## Travailler : récupérer les données, coder, sauvegarder
 
 Les données du cours sont sur un **Drive partagé, en lecture seule**, un dossier par sujet. Vous

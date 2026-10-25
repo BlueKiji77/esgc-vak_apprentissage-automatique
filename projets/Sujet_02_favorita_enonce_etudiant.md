@@ -106,6 +106,54 @@ and item information, whether that item was being promoted, as well as the unit 
 Le pipeline doit tourner **en moins de 10 minutes sur CPU**, sans GPU, avec `scikit-learn` seul.
 **12,2 millions de lignes** : c'est le premier obstacle, et il est volontaire.
 
+## Ce que l'enseignant garde — et ce que vous pouvez demander
+
+**Vous recevez toutes les lignes, sauf mention contraire ci-dessous.** Ce qui reste chez l'enseignant
+n'est **jamais** une partie des données : c'est **la cible** des lignes que vous devez estimer, et elle
+seule. Sans elle, il n'y aurait rien à prédire.
+
+| | |
+|---|---|
+| Fichier retenu | **`horizon_verite.csv`** |
+| Lignes | **277 568** |
+| Colonnes | `id`, `unit_sales` |
+| Contenu | les ventes réelles des 16 jours de `horizon.csv`, retours compris |
+
+**Vous n'y avez pas accès, et aucune copie ne doit circuler.** C'est l'enseignant qui mesure votre
+rendu contre ce fichier.
+
+### ⚠️ Ce sujet est distribué sur un **échantillon** — et voici comment il est fait
+
+**La table d'origine fait 125 497 040 lignes et 5 Go.** Elle ne peut pas être chargée, encore moins
+entraînée, dans un pipeline de 10 minutes sur CPU : c'est la contrainte du cours, et elle est
+incompatible avec ce volume. Le jeu que vous recevez est donc un **échantillon déterministe**.
+
+| | |
+|---|---|
+| Règle d'échantillonnage | **les articles dont `item_nbr` est multiple de 10** |
+| Articles retenus | **393 sur 4 036** dans la table source |
+| Lignes retenues | **12 248 320 sur 125 497 040**, soit **9,89 %** |
+| Ce qui est **préservé** | les **54 magasins**, les **33 familles**, les **1 688 jours**, la hiérarchie article → famille → classe, les **retours négatifs**, et le **panneau creux** (une case sans vente n'a pas de ligne) |
+| Ce qui est **perdu** | la plupart des articles — donc une partie du signal croisé entre articles proches |
+
+**Pourquoi cette règle et pas une autre.** Elle est **déterministe** (aucun tirage aléatoire, donc
+reproductible à l'identique), **sans biais de popularité** (elle ne retient pas « les articles qui se
+vendent »), et **documentée** : l'enseignant peut régénérer exactement le même fichier et le vérifier.
+
+**La table complète est chez l'enseignant.** Si votre équipe veut travailler sur les **125 497 040
+lignes**, ou sur d'autres articles, **demandez-la** : c'est possible, et c'est même la « version
+approfondie » du sujet. Dans ce cas, dites-le dans votre journal, et justifiez votre propre
+sous-échantillonnage — c'est exactement le travail d'ingénierie que ce sujet cherche à faire
+apprendre.
+
+### La table source complète est disponible sur demande
+
+Les données de ce sujet viennent d'une **compétition publique**. Si vous voulez travailler sur la
+**table d'origine entière** — plus de lignes, plus de variables, ou les fichiers annexes — **demandez-la
+à l'enseignant** : il l'a, et il peut vous la fournir pour un usage d'étude. Précisez dans votre
+journal ce que vous en avez fait, et **restez sur la même découpe** : le rendu final porte sur les
+lignes de `a_estimer.csv` / `a_decider.csv` / `horizon.csv`, pas sur la table complète.
+
 ## Travailler : récupérer les données, coder, sauvegarder
 
 Les données du cours sont sur un **Drive partagé, en lecture seule**, un dossier par sujet. Vous

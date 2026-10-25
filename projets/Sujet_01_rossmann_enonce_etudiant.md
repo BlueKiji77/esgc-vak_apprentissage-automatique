@@ -104,6 +104,30 @@ reprend ces champs sans `Sales` ni `Customers`.
 - **Si votre table ne tient pas en mémoire**, un **échantillon exécutable** est joint au dépôt,
   avec les instructions pour la table complète.
 
+## Ce que l'enseignant garde — et ce que vous pouvez demander
+
+**Vous recevez toutes les lignes, sauf mention contraire ci-dessous.** Ce qui reste chez l'enseignant
+n'est **jamais** une partie des données : c'est **la cible** des lignes que vous devez estimer, et elle
+seule. Sans elle, il n'y aurait rien à prédire.
+
+| | |
+|---|---|
+| Fichier retenu | **`horizon_verite.csv`** |
+| Lignes | **53 520** |
+| Colonnes | `Id`, `Sales` |
+| Contenu | les ventes réelles des 48 jours de `horizon.csv` |
+
+**Vous n'y avez pas accès, et aucune copie ne doit circuler.** C'est l'enseignant qui mesure votre
+rendu contre ce fichier.
+
+### La table source complète est disponible sur demande
+
+Les données de ce sujet viennent d'une **compétition publique**. Si vous voulez travailler sur la
+**table d'origine entière** — plus de lignes, plus de variables, ou les fichiers annexes — **demandez-la
+à l'enseignant** : il l'a, et il peut vous la fournir pour un usage d'étude. Précisez dans votre
+journal ce que vous en avez fait, et **restez sur la même découpe** : le rendu final porte sur les
+lignes de `a_estimer.csv` / `a_decider.csv` / `horizon.csv`, pas sur la table complète.
+
 ## Travailler : récupérer les données, coder, sauvegarder
 
 Les données du cours sont sur un **Drive partagé, en lecture seule**, un dossier par sujet. Vous
