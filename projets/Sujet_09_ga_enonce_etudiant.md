@@ -14,20 +14,25 @@ décide où placer le budget d'acquisition, et quels visiteurs relancer.
 > Peut-on estimer le revenu d'un visiteur à partir de son comportement de navigation — et de combien
 > une méthode soignée bat-elle l'estimation actuelle, qui traite tous les visiteurs de la même façon ?
 
+**Et avant cela, une question d'ingénierie** : les données arrivent **telles qu'un outil de mesure les
+produit** — une ligne par session, avec des objets JSON imbriqués. Les mettre en état d'être
+exploitées fait partie du travail.
+
 ## Ce que vous recevez
 
-| Fichier | Contenu |
-|---|---|
-| `train.csv` | **571 333 visiteurs** dont le revenu est connu — 17 colonnes, dont `revenu` |
-| `a_estimer.csv` | **142 834 visiteurs** — les 16 mêmes colonnes, **sans `revenu`** |
+Deux archives, à décompresser vous-mêmes.
+
+| Fichier | Contenu | Compressé | Décompressé |
+|---|---|---|---|
+| **`train.zip`** | les sessions des **571 333 visiteurs** dont le revenu est connu — une ligne par **session** | **48,5 Mo** | **1 204,7 Mo** |
+| **`a_estimer.zip`** | les sessions des **142 834 visiteurs** à estimer — mêmes colonnes, **`transactionRevenue` retiré** | **12,2 Mo** | **298,1 Mo** |
 
 **1,40 % des visiteurs seulement ont généré un revenu.** Les autres n'ont rien acheté — et ce n'est
 pas une anomalie : c'est la réalité d'un site marchand.
 
 ## Ce que contient chaque colonne
 
-> **Texte officiel de la compétition**, recopié de la page *Data* de Kaggle, puis complété par ce que
-> la source contient réellement.
+> **Texte officiel de la compétition**, recopié de la page *Data* de Kaggle.
 
 Trois avertissements officiels, en majuscules dans le texte d'origine :
 
@@ -41,67 +46,67 @@ Trois avertissements officiels, en majuscules dans le texte d'origine :
 
 Et la définition de la cible : `y_user = Σ transaction_i`, puis `target_user = ln(y_user + 1)`.
 
-**Les colonnes que vous recevez** (elles résultent de l'aplatissement des quatre colonnes JSON
-d'origine : `device`, `geoNetwork`, `totals`, `trafficSource`) :
+**Les 12 colonnes de chaque fichier** — quatre d'entre elles contiennent un objet JSON :
 
 | Colonne | Type | Ce que c'est |
 |---|---|---|
-| `visiteur` | texte | `fullVisitorId` — **à lire comme une chaîne**, jamais comme un nombre |
-| `sessions` | entier | nombre de visites du visiteur |
-| `visites` | entier | total de `totals.visits` |
-| `hits` | entier | total de `totals.hits` |
-| `pages` | entier | total de `totals.pageviews` |
-| `transactions` | entier | total de `totals.transactions` |
-| `premiere_date` | entier | première date de visite, au format `AAAAMMJJ` |
-| `derniere_date` | entier | dernière date de visite, au format `AAAAMMJJ` |
-| `navigateur` | texte | `device.browser` |
-| `systeme` | texte | `device.operatingSystem` |
-| `categorie` | texte | `device.deviceCategory` — mobile, tablette, ordinateur |
-| `mobile` | texte | `device.isMobile` |
-| `pays` | texte | `geoNetwork.country` |
-| `canal` | texte | `channelGrouping` — le canal d'acquisition |
-| `medium` | texte | `trafficSource.medium` |
-| `a_achete` | 0/1 | **indicateur calculé** : le visiteur a-t-il un revenu ? |
+| `fullVisitorId` | texte | l'identifiant du visiteur — **à lire comme une chaîne**, jamais comme un nombre |
+| `visitId` | entier | l'identifiant de la session |
+| `visitNumber` | entier | numéro de la visite dans l'historique du visiteur |
+| `visitStartTime` | entier | horodatage Unix du début de session |
+| `date` | entier | la date, au format `AAAAMMJJ` |
+| `channelGrouping` | texte | le canal d'acquisition |
+| `socialEngagementType` | texte | type d'engagement social |
+| **`totals`** | **JSON** | `visits`, `hits`, `pageviews`, `bounces`, `newVisits`, `transactions`, **`transactionRevenue`** |
+| **`device`** | **JSON** | `browser`, `operatingSystem`, `deviceCategory`, `isMobile`, `browserVersion`… |
+| **`geoNetwork`** | **JSON** | `continent`, `subContinent`, `country`, `region`, `city`, `networkDomain`… |
+| **`trafficSource`** | **JSON** | `source`, `medium`, `campaign`, `keyword`, `isTrueDirect`, `adContent`… |
+| `sessionId` | entier | identifiant technique de session |
 
-**Le revenu est exprimé en micro-unités** (comme dans Google Analytics) : un revenu de `48 360 000`
-vaut `48,36`.
+**`transactionRevenue` est en micro-unités** : un revenu de `48 360 000` vaut `48,36`. Et il est
+**absent du JSON de `a_estimer.zip`** — c'est ce que vous devez estimer.
 
 ## Ce que vous rendez
 
 Un **dépôt de code** :
 
-1. un **pipeline exécutable** qui prend `a_estimer.csv` et produit `visiteur,revenu` ;
+1. un **pipeline exécutable** qui prend `a_estimer.zip` et produit `visiteur,revenu` — il dézippe,
+   parse le JSON, agrège par visiteur, entraîne et prédit ;
 2. le **protocole de validation** retenu, justifié ;
 3. les **essais**, y compris ceux qui ont échoué, avec leur score ;
 4. une **note de 3 pages** : décision, métrique, méthode, résultat chiffré, ce qui a échoué ;
 5. une **model card** ;
 6. la **fiche de données** du S13.
 
-Le pipeline doit tourner **en moins de 10 minutes sur CPU**, sans GPU, avec `scikit-learn` seul.
+Le pipeline doit tourner **en moins de 10 minutes sur CPU**, **décompression et parsing compris**,
+sans GPU, avec `scikit-learn` seul.
 
 ## Ce que l'enseignant garde — et ce que vous pouvez demander
 
 **Vous recevez toutes les lignes, sauf mention contraire ci-dessous.** Ce qui reste chez l'enseignant
-n'est **jamais** une partie des données : c'est **la cible** des lignes que vous devez estimer, et elle
-seule. Sans elle, il n'y aurait rien à prédire.
+n'est **jamais** une partie des données : c'est **la cible** des lignes que vous devez estimer, et
+elle seule. Sans elle, il n'y aurait rien à prédire.
 
 | | |
 |---|---|
 | Fichier retenu | **`verite.csv`** |
 | Lignes | **142 834** |
 | Colonnes | `visiteur`, `revenu` |
-| Contenu | le revenu réel des visiteurs de `a_estimer.csv` |
+| Contenu | le revenu réel des visiteurs de `a_estimer.zip` |
 
 **Vous n'y avez pas accès, et aucune copie ne doit circuler.** C'est l'enseignant qui mesure votre
 rendu contre ce fichier.
 
-### La table source complète est disponible sur demande
+### La table source complète est chez l'enseignant
 
-Les données de ce sujet viennent d'une **compétition publique**. Si vous voulez travailler sur la
-**table d'origine entière** — plus de lignes, plus de variables, ou les fichiers annexes — **demandez-la
-à l'enseignant** : il l'a, et il peut vous la fournir pour un usage d'étude. Précisez dans votre
-journal ce que vous en avez fait, et **restez sur la même découpe** : le rendu final porte sur les
-lignes de `a_estimer.csv` / `a_decider.csv` / `horizon.csv`, pas sur la table complète.
+Les données viennent d'une **compétition publique**. La source est la même que celle que vous
+recevez — **ses 903 653 sessions et son JSON** — mais **avec `transactionRevenue` sur toutes les
+lignes**. Si vous voulez la consulter pour comprendre la structure, **demandez-la** : elle est chez
+l'enseignant.
+
+**Deux précautions si vous la demandez :** elle pèse **1,50 Go décompressée** (64,1 Mo compressée),
+donc **ne l'extrayez pas sur un disque plein** et **ne la chargez jamais d'un bloc** — lisez-la par
+morceaux. Et **restez sur la même découpe** : le rendu porte sur les visiteurs de `a_estimer.zip`.
 
 ## Travailler : récupérer les données, coder, sauvegarder
 
@@ -113,15 +118,10 @@ téléchargez **le dossier de votre sujet** — pas les autres — et vous chois
 | | |
 |---|---|
 | Dossier du sujet | **`Sujet_09_GA_Customer_Revenue/`** |
-| Poids attendu | **83,4 Mo** |
-| Contenu | les fichiers listés dans « Ce que vous recevez » |
-
-Après téléchargement, vérifiez que rien n'est tronqué : le poids du dossier doit correspondre, et
-chaque `csv` doit s'ouvrir avec le bon nombre de lignes.
+| Poids attendu | **60,7 Mo** (les deux archives) |
+| Contenu | `train.zip`, `a_estimer.zip` |
 
 ### 2. Option A — travailler en local, dans VS Code
-
-C'est la voie la plus simple : vos fichiers sont sur votre disque, rien ne disparaît.
 
 ```
 python -m venv .venv
@@ -137,63 +137,33 @@ source .venv/bin/activate
 pip install pandas scikit-learn
 ```
 
-Ouvrez le dossier dans VS Code, écrivez votre pipeline — `pipeline.py` par exemple — et lancez-le :
+**Décompressez dans un dossier de travail**, pas dans le dossier partagé : comptez **1,50 Go** pour les
+deux fichiers décompressés. Puis ouvrez le dossier dans VS Code, écrivez votre pipeline et lancez-le.
 
-```
-python pipeline.py
-```
-
-**La contrainte des 10 minutes s'applique à votre machine.** Mesurez-la : elle fait partie du
-livrable, et un pipeline qui tourne en 40 minutes sur votre portable ne sera pas accepté.
+**La contrainte des 10 minutes s'applique à votre machine**, décompression et parsing compris.
+Mesurez-la : elle fait partie du livrable.
 
 ### 3. Option B — travailler dans un carnet Kaggle
 
-Kaggle ne voit pas votre disque : il faut **lui donner vos fichiers**, en créant votre propre jeu de
-données. C'est vous qui le déposez, pour votre usage — le jeu est **privé par défaut**.
+Kaggle ne voit pas votre disque : créez **votre propre jeu de données** avec les deux archives.
 
 1. **kaggle.com/datasets** → **New Dataset**.
-2. Déposez les fichiers du dossier `Sujet_09_GA_Customer_Revenue/` (glisser-déposer), nommez le jeu de données
-   `esgc-vak-sujet-09-…`, puis **Create**.
-3. Dans votre carnet : **Add Input** → onglet **Datasets** → filtre **Your Datasets** → sélectionnez
-   le vôtre → **Add**.
-4. Les fichiers apparaissent dans **`/kaggle/input/<nom-de-votre-jeu>/`**, en **lecture seule**.
-   Vérifiez avant d'écrire du code :
+2. Déposez `train.zip` et `a_estimer.zip`, nommez le jeu `esgc-vak-sujet-09-…`, puis **Create**.
+3. Dans votre carnet : **Add Input** → onglet **Datasets** → filtre **Your Datasets** → **Add**.
+4. Vérifiez : `!ls /kaggle/input/<nom-de-votre-jeu>/`.
+5. **Session options** → **Accelerator : None**, **Internet désactivé**.
 
-```
-!ls /kaggle/input/<nom-de-votre-jeu>/
-```
-
-5. Réglez la session : **Session options** → **Accelerator : None** — le projet tient sur CPU, c'est
-   la contrainte du cours. Laissez **Internet désactivé**.
-
-> **La compétition d'origine n'est pas la source.** Ne cherchez pas à l'ajouter : ses fichiers
-> diffèrent des vôtres — pas d'horizon sans cible, pas de jeu à estimer — et plusieurs de ces
-> compétitions ne sont plus rejoignables.
+> **La compétition d'origine n'est pas la source.** Ses fichiers diffèrent des vôtres : pas de jeu à
+> estimer sans revenu, et plusieurs compétitions de ce type ne sont plus rejoignables.
 
 ### 4. Sauvegarder, et réutiliser votre travail
 
-**En local (Option A).** Votre dossier de travail **est** la sauvegarde. Gardez les sorties dans un
-sous-dossier `sorties/`, et versionnez avec `git` si vous le souhaitez.
+**En local.** Votre dossier de travail est la sauvegarde ; gardez les sorties dans `sorties/`.
 
-**Sur Kaggle (Option B).** `/kaggle/input` est en **lecture seule** : écrivez dans
-**`/kaggle/working/`**.
-
-```python
-import os
-os.makedirs("/kaggle/working/sorties", exist_ok=True)
-prediction.to_csv("/kaggle/working/sorties/prediction.csv", index=False)
-```
-
-- **Sauvegarder** : bouton **Save Version** → **Save & Run All (Commit)**. Le carnet est **ré-exécuté
-  de bout en bout** dans un conteneur propre, et **tout ce qui reste dans `/kaggle/working/` est
-  conservé** comme sortie de cette version.
-- **Reprendre ces sorties dans un autre carnet** : **Add Input** → onglet **Notebook Output** →
-  votre carnet, la version voulue → le contenu apparaît dans `/kaggle/input/<nom-du-carnet>/`.
-- **⚠️ `/kaggle/working` est éphémère** : une session inactive est coupée au bout de 20 minutes. Sans
-  **Save Version**, tout est perdu.
-
-**Quel que soit votre choix**, le livrable est le même : un **dépôt de code** reproductible, dont le
-pipeline tourne en moins de 10 minutes sur CPU.
+**Sur Kaggle.** `/kaggle/input` est en **lecture seule** : écrivez dans **`/kaggle/working/`**, puis
+**Save Version → Save & Run All (Commit)** pour conserver les sorties. Pour les reprendre ailleurs :
+**Add Input → Notebook Output**. ⚠️ `/kaggle/working` est éphémère : une session inactive est coupée
+au bout de 20 minutes.
 
 ## Les trois temps du projet
 
@@ -203,15 +173,15 @@ pipeline tourne en moins de 10 minutes sur CPU.
   réfléchissez à ce que cela implique avant de mesurer quoi que ce soit.
 - **Le coût** : un acheteur manqué contre un visiteur relancé pour rien.
 - **La règle métier** : que fait le site sans modèle ? Mesurez-la. C'est votre plancher.
-- **Le protocole de validation** : comment vous découpez `train.csv`, sachant que 1,40 % seulement
-  des visiteurs ont acheté.
+- **Le protocole de validation** : comment vous découpez les visiteurs connus, sachant que 1,40 %
+  seulement ont acheté.
 
 ### Bloc 2 — avant la séance 9 · *le pipeline*
 
-- Le pipeline complet, exécutable d'un bout à l'autre.
+- Le pipeline complet, **de l'archive au fichier de prédiction**.
 - **Au moins huit essais**, dont ceux qui ont échoué, chacun avec son score.
-- **Les variables** : d'où viennent-elles ? Que contenaient les colonnes JSON d'origine, et que
-  perdez-vous en les aplatisant ?
+- **Le passage du JSON à la table** : quels champs gardez-vous, comment agrégez-vous les sessions d'un
+  visiteur, et que perdez-vous en le faisant ? Écrivez-le.
 - **L'analyse d'erreurs** : sur quels visiteurs votre modèle se trompe, et de combien.
 
 ### Bloc 3 — avant la séance 13 · *le dépôt et la robustesse*
