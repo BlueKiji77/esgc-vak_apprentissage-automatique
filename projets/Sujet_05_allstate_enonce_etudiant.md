@@ -70,6 +70,98 @@ volontaire : votre travail est de **mesurer** ce que chaque variable apporte, pa
 
 Le pipeline doit tourner **en moins de 10 minutes sur CPU**, sans GPU, avec `scikit-learn` seul.
 
+## Travailler : récupérer les données, coder, sauvegarder
+
+Les données du cours sont sur un **Drive partagé, en lecture seule**, un dossier par sujet. Vous
+téléchargez **le dossier de votre sujet** — pas les autres — et vous choisissez ensuite **où coder**.
+
+### 1. Récupérer votre dossier
+
+| | |
+|---|---|
+| Dossier du sujet | **`Sujet_05_Allstate/`** |
+| Poids attendu | **70,3 Mo** |
+| Contenu | les fichiers listés dans « Ce que vous recevez » |
+
+Après téléchargement, vérifiez que rien n'est tronqué : le poids du dossier doit correspondre, et
+chaque `csv` doit s'ouvrir avec le bon nombre de lignes.
+
+### 2. Option A — travailler en local, dans VS Code
+
+C'est la voie la plus simple : vos fichiers sont sur votre disque, rien ne disparaît.
+
+```
+python -m venv .venv
+```
+
+```
+source .venv/bin/activate
+```
+
+*(sous Windows : `.venv\Scripts\activate`)*
+
+```
+pip install pandas scikit-learn
+```
+
+Ouvrez le dossier dans VS Code, écrivez votre pipeline — `pipeline.py` par exemple — et lancez-le :
+
+```
+python pipeline.py
+```
+
+**La contrainte des 10 minutes s'applique à votre machine.** Mesurez-la : elle fait partie du
+livrable, et un pipeline qui tourne en 40 minutes sur votre portable ne sera pas accepté.
+
+### 3. Option B — travailler dans un carnet Kaggle
+
+Kaggle ne voit pas votre disque : il faut **lui donner vos fichiers**, en créant votre propre jeu de
+données. C'est vous qui le déposez, pour votre usage — le jeu est **privé par défaut**.
+
+1. **kaggle.com/datasets** → **New Dataset**.
+2. Déposez les fichiers du dossier `Sujet_05_Allstate/` (glisser-déposer), nommez le jeu de données
+   `esgc-vak-sujet-05-…`, puis **Create**.
+3. Dans votre carnet : **Add Input** → onglet **Datasets** → filtre **Your Datasets** → sélectionnez
+   le vôtre → **Add**.
+4. Les fichiers apparaissent dans **`/kaggle/input/<nom-de-votre-jeu>/`**, en **lecture seule**.
+   Vérifiez avant d'écrire du code :
+
+```
+!ls /kaggle/input/<nom-de-votre-jeu>/
+```
+
+5. Réglez la session : **Session options** → **Accelerator : None** — le projet tient sur CPU, c'est
+   la contrainte du cours. Laissez **Internet désactivé**.
+
+> **La compétition d'origine n'est pas la source.** Ne cherchez pas à l'ajouter : ses fichiers
+> diffèrent des vôtres — pas d'horizon sans cible, pas de jeu à estimer — et plusieurs de ces
+> compétitions ne sont plus rejoignables.
+
+### 4. Sauvegarder, et réutiliser votre travail
+
+**En local (Option A).** Votre dossier de travail **est** la sauvegarde. Gardez les sorties dans un
+sous-dossier `sorties/`, et versionnez avec `git` si vous le souhaitez.
+
+**Sur Kaggle (Option B).** `/kaggle/input` est en **lecture seule** : écrivez dans
+**`/kaggle/working/`**.
+
+```python
+import os
+os.makedirs("/kaggle/working/sorties", exist_ok=True)
+prediction.to_csv("/kaggle/working/sorties/prediction.csv", index=False)
+```
+
+- **Sauvegarder** : bouton **Save Version** → **Save & Run All (Commit)**. Le carnet est **ré-exécuté
+  de bout en bout** dans un conteneur propre, et **tout ce qui reste dans `/kaggle/working/` est
+  conservé** comme sortie de cette version.
+- **Reprendre ces sorties dans un autre carnet** : **Add Input** → onglet **Notebook Output** →
+  votre carnet, la version voulue → le contenu apparaît dans `/kaggle/input/<nom-du-carnet>/`.
+- **⚠️ `/kaggle/working` est éphémère** : une session inactive est coupée au bout de 20 minutes. Sans
+  **Save Version**, tout est perdu.
+
+**Quel que soit votre choix**, le livrable est le même : un **dépôt de code** reproductible, dont le
+pipeline tourne en moins de 10 minutes sur CPU.
+
 ## Les trois temps du projet
 
 ### Bloc 1 — avant la séance 5 · *la décision et la mesure*
