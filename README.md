@@ -19,6 +19,7 @@ données, elles, sont sur la compétition Kaggle.
 | `Devoir_maison_2.ipynb` | **Devoir 2 — les carnets J3 et J4.** Il porte aujourd'hui les quatre questions de J3 ; celles de J4 les rejoindront. À rendre avec `declaration_DM2.md` |
 | `DECLARATION_modele.md` | **Le modèle de déclaration d'usage de l'IA.** À recopier dans votre dépôt à chaque rendu : `declaration_DM1.md`, `declaration_DM2.md`, `declaration_E1.md`, `declaration_E2.md`, `declaration_E3.md` — et `declaration_B3.md` sur le dépôt d'équipe. Elle se dépose **avec** le carnet, dans le même commit |
 | `projets/` | **Les énoncés des sujets de projet.** Un fichier par sujet : le problème, la décision à servir, ce que vous recevez, ce qu'on attend, et rien de plus. Le sujet de votre équipe vous sera indiqué |
+| `carnets/` | **Neuf carnets de démarrage, un par sujet.** Ils trouvent les données, les chargent (cache Parquet pour les tables lourdes), les profilent, écrivent une soumission au bon format — puis s'arrêtent : métrique, découpage et modèle restent à votre charge |
 
 ## Comment s'en servir
 

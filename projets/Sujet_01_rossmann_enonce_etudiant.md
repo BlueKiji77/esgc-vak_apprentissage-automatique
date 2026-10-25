@@ -101,8 +101,8 @@ reprend ces champs sans `Sales` ni `Customers`.
 - **Reproductible.** `Save & Run All`, graine fixée, tourne en **≤ 10 min sur CPU**.
 - **Journal de décisions** incluant les essais **échoués** — vos chiffres, vos mots, aucun texte
   produit par une IA pour cette partie.
-- **Si votre table ne tient pas en mémoire**, un **échantillon exécutable** est joint au dépôt,
-  avec les instructions pour la table complète.
+- **Votre table tient en mémoire** : `train.csv` pèse **33 Mo**. Aucun échantillon n'est donc
+  nécessaire — chargez-la directement, et vérifiez-le plutôt que de le supposer.
 
 ## Ce que l'enseignant garde — et ce que vous pouvez demander
 
