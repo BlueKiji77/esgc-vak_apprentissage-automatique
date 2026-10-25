@@ -88,7 +88,7 @@ téléchargez **le dossier de votre sujet** — pas les autres — et vous chois
 
 | | |
 |---|---|
-| Dossier du sujet | **`Sujet_10_GA_Customer_Revenue/`** |
+| Dossier du sujet | **`Sujet_09_GA_Customer_Revenue/`** |
 | Poids attendu | **83,4 Mo** |
 | Contenu | les fichiers listés dans « Ce que vous recevez » |
 
@@ -128,8 +128,8 @@ Kaggle ne voit pas votre disque : il faut **lui donner vos fichiers**, en créan
 données. C'est vous qui le déposez, pour votre usage — le jeu est **privé par défaut**.
 
 1. **kaggle.com/datasets** → **New Dataset**.
-2. Déposez les fichiers du dossier `Sujet_10_GA_Customer_Revenue/` (glisser-déposer), nommez le jeu de données
-   `esgc-vak-sujet-10-…`, puis **Create**.
+2. Déposez les fichiers du dossier `Sujet_09_GA_Customer_Revenue/` (glisser-déposer), nommez le jeu de données
+   `esgc-vak-sujet-09-…`, puis **Create**.
 3. Dans votre carnet : **Add Input** → onglet **Datasets** → filtre **Your Datasets** → sélectionnez
    le vôtre → **Add**.
 4. Les fichiers apparaissent dans **`/kaggle/input/<nom-de-votre-jeu>/`**, en **lecture seule**.

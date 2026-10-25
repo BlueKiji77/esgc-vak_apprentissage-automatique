@@ -1,4 +1,4 @@
-# Projet — Estimer le montant d'un sinistre
+# Projet — Détecter la transaction d'un client
 
 **Équipe de 3 · 6 semaines · rendu par dépôt**
 
@@ -6,49 +6,50 @@
 
 ## Le contexte
 
-Un assureur reçoit la déclaration d'un sinistre. Il doit **estimer le montant** qu'il devra payer :
-c'est ce montant qui alimente la provision du dossier et le tarif du risque.
-
-L'estimation se fait à partir du dossier seul — les 130 variables qui le décrivent. Le montant, lui,
-n'est connu qu'après règlement.
+Une banque observe ses clients et veut savoir **lesquels réaliseront une transaction** dans une
+fenêtre donnée : pour cibler une offre, et pour dimensionner son dispositif.
 
 ## La question à laquelle le projet répond
 
-> Peut-on estimer le montant d'un sinistre à partir de son dossier — et de combien une méthode
-> soignée bat-elle l'estimation que l'assureur applique aujourd'hui sans modèle ?
+> Peut-on repérer, dans les 200 variables d'un client, ceux qui vont réaliser une transaction — et de
+> combien une méthode soignée bat-elle le tri que la banque applique aujourd'hui sans modèle ?
 
 ## Ce que vous recevez
 
 | Fichier | Contenu |
 |---|---|
-| `train.csv` | **150 654 sinistres** dont le montant est connu — 132 colonnes, dont `loss` |
-| `a_estimer.csv` | **37 664 sinistres** — les 131 mêmes colonnes, **sans `loss`** |
+| `train.csv` | **160 000 clients** dont l'issue est connue — 202 colonnes, dont `target` |
+| `a_decider.csv` | **40 000 clients** — les 201 mêmes colonnes, **sans `target`** |
 
-Les variables sont de deux sortes : **116 catégorielles** (`cat1`…`cat116`), de 2 à 326 modalités, et
-**14 continues** (`cont1`…`cont14`). Toutes les colonnes sont anonymisées : il n'y a pas de sens
-métier à retrouver, seulement des régularités à mesurer.
+**10,05 % des clients de `train.csv` ont réalisé la transaction** (20 098 sur 200 000 au total).
 
-**Il n'y a aucune valeur manquante dans ce fichier.** C'est rare, et cela ne vous dispense de rien.
+**Trois avertissements :**
 
-Aucune donnée ne permet d'identifier une personne : une ligne est un sinistre, et l'identifiant `id`
-est un numéro interne.
+- **les 200 variables sont continues et anonymisées** : `var_0` … `var_199`, sans aucun nom parlant.
+  Il n'y a pas de sens métier à retrouver, il y a des régularités à mesurer ;
+- **aucune valeur ne manque** et il n'y a aucune variable catégorielle : votre travail se joue donc
+  sur **ce que vous faites de ces nombres**, et sur **lesquels vous gardez** ;
+- **la métrique d'évaluation est l'aire sous la courbe ROC (AUC)**.
+
+Aucune donnée ne permet d'identifier une personne : `ID_code` est un numéro interne.
 
 
 ## Ce que contient chaque colonne
 
-| Famille | Nombre | Type | Ce que c'est |
-|---|---|---|---|
-| `id` | 1 | entier | identifiant du sinistre |
-| `cat1` … `cat116` | **116** | **texte** (lettres `A`, `B`, `C`…) | variables catégorielles **anonymisées**, de **2 à 326 modalités** |
-| `cont1` … `cont14` | **14** | décimal | variables continues **anonymisées** |
-| `loss` | 1 | décimal | **la cible** : montant du sinistre, de 0,67 à 121 012 |
+| Colonne | Type | Ce que c'est |
+|---|---|---|
+| `ID_code` | texte | identifiant du client |
+| `var_0` … `var_199` | **décimal** | **200 variables continues anonymisées** |
+| `target` | 0/1 | **la cible** : 1 = transaction réalisée |
 
-**Ce que l'on sait, et ce que l'on ne sait pas.** Aucune de ces variables n'a de signification publiée :
-`cat57` n'est pas « le type de véhicule », c'est `cat57`. Vous ne pouvez donc pas raisonner par la
-connaissance du métier — **vous devez mesurer ce que chaque variable apporte**, et c'est l'exercice.
+**Ce qui est mesuré sur les données livrées, et qui doit orienter votre travail :**
 
-**Ce qui est mesuré sur les données livrées :** aucune valeur manquante ; les 116 catégorielles ont de
-2 à 326 modalités ; les 14 continues s'étendent de 0 à 587 602.
+- les 200 variables s'étendent de **−73,8 à +65,4** : ce sont des valeurs **centrées**, pas des
+  montants, et **124 d'entre elles prennent des valeurs négatives** ;
+- **aucune valeur manquante** ;
+- **aucun nom parlant** : il n'existe aucune description publiée de `var_57`. Vous ne pouvez pas
+  raisonner par le métier — vous devez **mesurer** ce que chaque variable apporte, seule puis à
+  plusieurs.
 
 
 **Ce que Kaggle documente, et ce qu'il ne documente pas.** La page *Data* de cette compétition ne
@@ -61,10 +62,10 @@ volontaire : votre travail est de **mesurer** ce que chaque variable apporte, pa
 
 **Un dépôt de code**, pas un notebook :
 
-1. un **pipeline exécutable** qui prend `a_estimer.csv` et produit un fichier `id,loss` ;
+1. un **pipeline exécutable** qui prend `a_decider.csv` et produit `ID_code,target` — une **décision** ;
 2. le **protocole de validation** retenu, justifié ;
 3. les **essais**, y compris ceux qui ont échoué, avec leur score ;
-4. une **note de 3 pages** : décision, métrique, méthode, résultat chiffré, ce qui a échoué ;
+4. une **note de 3 pages** : décision, métrique et seuil, méthode, résultat chiffré, ce qui a échoué ;
 5. une **model card** ;
 6. la **fiche de données** du S13.
 
@@ -79,8 +80,8 @@ téléchargez **le dossier de votre sujet** — pas les autres — et vous chois
 
 | | |
 |---|---|
-| Dossier du sujet | **`Sujet_05_Allstate/`** |
-| Poids attendu | **70,3 Mo** |
+| Dossier du sujet | **`Sujet_07_Santander_Transaction/`** |
+| Poids attendu | **302,3 Mo** |
 | Contenu | les fichiers listés dans « Ce que vous recevez » |
 
 Après téléchargement, vérifiez que rien n'est tronqué : le poids du dossier doit correspondre, et
@@ -119,8 +120,8 @@ Kaggle ne voit pas votre disque : il faut **lui donner vos fichiers**, en créan
 données. C'est vous qui le déposez, pour votre usage — le jeu est **privé par défaut**.
 
 1. **kaggle.com/datasets** → **New Dataset**.
-2. Déposez les fichiers du dossier `Sujet_05_Allstate/` (glisser-déposer), nommez le jeu de données
-   `esgc-vak-sujet-05-…`, puis **Create**.
+2. Déposez les fichiers du dossier `Sujet_07_Santander_Transaction/` (glisser-déposer), nommez le jeu de données
+   `esgc-vak-sujet-07-…`, puis **Create**.
 3. Dans votre carnet : **Add Input** → onglet **Datasets** → filtre **Your Datasets** → sélectionnez
    le vôtre → **Add**.
 4. Les fichiers apparaissent dans **`/kaggle/input/<nom-de-votre-jeu>/`**, en **lecture seule**.
@@ -166,43 +167,41 @@ pipeline tourne en moins de 10 minutes sur CPU.
 
 ### Bloc 1 — avant la séance 5 · *la décision et la mesure*
 
-- **La métrique** : laquelle vous adoptez, et **ce qu'elle implique**. Une métrique ne dit pas
-  seulement comment vous serez jugés : elle détermine ce qu'est une bonne réponse.
-- **La constante de référence** : si l'on n'a aucun modèle, quelle valeur unique faut-il annoncer ?
-  La réponse dépend de la métrique, et elle doit être **mesurée**, pas supposée.
-- **Le coût** : que coûte une sous-estimation, que coûte une surestimation ? Sont-elles symétriques ?
-- **Le protocole de validation** : comment vous découpez `train.csv` pour estimer honnêtement votre
-  performance sur `a_estimer.csv` — et pourquoi ce découpage-là. La cible est un **montant**, pas une
-  classe : cela change la façon de découper.
+- **La métrique** : ce qu'elle récompense, ce qu'elle ignore.
+- **Le coût** : une vente manquée contre une sollicitation inutile. Chiffrez les deux.
+- **La règle métier** : comment la banque trie-t-elle aujourd'hui, sans modèle ? Mesurez-la. C'est
+  votre plancher.
+- **Le protocole de validation** : comment vous découpez `train.csv`, et pourquoi.
 
 ### Bloc 2 — avant la séance 9 · *le pipeline*
 
 - Le pipeline complet, exécutable d'un bout à l'autre.
 - **Au moins huit essais**, dont ceux qui ont échoué, chacun avec son score.
-- **L'encodage des 116 variables catégorielles** : ce que vous faites, et pourquoi. Certaines ont
-  plus de 300 modalités ; l'encodage le plus évident n'est pas toujours tenable.
-- L'**analyse d'erreurs** : sur quels sinistres votre modèle se trompe, et de combien.
+- **La question de ce sujet** : que vaut **chaque variable prise seule** ? Et que vaut le modèle
+  quand on n'en garde qu'une, cinq, dix, cinquante, cent ? **Tracez cette courbe.** C'est elle qui
+  décidera de votre sélection — et elle vous apprendra quelque chose sur la table que les autres
+  sujets ne vous apprendraient pas.
+- **L'analyse d'erreurs** : sur quels clients vous vous trompez.
 
 ### Bloc 3 — avant la séance 13 · *le dépôt et la robustesse*
 
 - Le dépôt propre, la note de 3 pages, la model card, la fiche de données.
 - **Trois mutations nommées**, chacune applicable en **une cellule**.
-- Le test de robustesse, et l'estimation finale des 37 664 sinistres.
+- Le test de robustesse, et la décision finale sur les 40 000 clients.
 
 ## Comment vous êtes évalués
 
 Voir la grille du cours. Trois points pèsent particulièrement ici :
 
-- **la constante de référence** : votre score se rapporte à une estimation sans modèle, mesurée, pas
-  à zéro ;
-- **la cohérence entre la métrique et la décision** : un modèle excellent mesuré par la mauvaise
-  métrique est un mauvais modèle ;
+- **la justification de la sélection de variables** : garder les 200 « au cas où » n'est pas un choix,
+  c'est une absence de choix — et elle se mesure, en temps comme en qualité ;
+- **le chiffre contre le plancher** : votre score se rapporte à une règle sans modèle, mesurée ;
 - **la vérité du journal** : le journal consigne les essais, y compris ceux qui ont échoué.
 
 ## Deux règles du cours
 
-**Pas de fuite.** Une information qui ne serait pas connue **au moment où le dossier est instruit** ne
-peut pas entrer dans le modèle.
+**Pas de fuite.** Une information inconnue **au moment où la décision est prise** ne peut pas entrer
+dans le modèle.
 
 **Le code doit rester réparable.** On doit pouvoir passer d'une version à l'autre en changeant une
 cellule, pas en réécrivant le pipeline.

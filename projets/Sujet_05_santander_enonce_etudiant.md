@@ -1,4 +1,4 @@
-# Projet — Détecter la transaction d'un client
+# Projet — Identifier le client qui va se plaindre
 
 **Équipe de 3 · 6 semaines · rendu par dépôt**
 
@@ -6,50 +6,54 @@
 
 ## Le contexte
 
-Une banque observe ses clients et veut savoir **lesquels réaliseront une transaction** dans une
-fenêtre donnée : pour cibler une offre, et pour dimensionner son dispositif.
+Une banque veut savoir, **parmi ses clients actuels**, lesquels risquent de partir en se plaignant.
+Elle a un budget d'appels limité : elle ne peut pas rappeler tout le monde, et elle veut rappeler les
+bons.
 
 ## La question à laquelle le projet répond
 
-> Peut-on repérer, dans les 200 variables d'un client, ceux qui vont réaliser une transaction — et de
-> combien une méthode soignée bat-elle le tri que la banque applique aujourd'hui sans modèle ?
+> Peut-on repérer, dans le dossier d'un client, ceux qui vont se plaindre — et de combien une méthode
+> soignée bat-elle le tri que la banque applique aujourd'hui sans modèle ?
 
 ## Ce que vous recevez
 
 | Fichier | Contenu |
 |---|---|
-| `train.csv` | **160 000 clients** dont l'issue est connue — 202 colonnes, dont `target` |
-| `a_decider.csv` | **40 000 clients** — les 201 mêmes colonnes, **sans `target`** |
+| `train.csv` | **60 816 clients** dont l'issue est connue — 371 colonnes, dont `TARGET` (1 = mécontent) |
+| `a_decider.csv` | **15 204 clients** — les 370 mêmes colonnes, **sans `TARGET`** |
 
-**10,05 % des clients de `train.csv` ont réalisé la transaction** (20 098 sur 200 000 au total).
+**3,96 % des clients de `train.csv` sont mécontents** (3 008 sur 76 020 au total).
 
-**Trois avertissements :**
+**Deux avertissements :**
 
-- **les 200 variables sont continues et anonymisées** : `var_0` … `var_199`, sans aucun nom parlant.
-  Il n'y a pas de sens métier à retrouver, il y a des régularités à mesurer ;
-- **aucune valeur ne manque** et il n'y a aucune variable catégorielle : votre travail se joue donc
-  sur **ce que vous faites de ces nombres**, et sur **lesquels vous gardez** ;
-- **la métrique d'évaluation est l'aire sous la courbe ROC (AUC)**.
+- **toutes les variables sont anonymisées** (`var3`, `var15`, `imp_op_var39_comer_ult1`, …). Il n'y a
+  pas de sens métier à retrouver : votre travail est de **mesurer**, pas d'interpréter. La connaissance
+  du domaine ne vous aidera pas ; l'analyse, si ;
+- **beaucoup de variables de montant sont nulles la plupart du temps.** C'est une information en soi.
 
-Aucune donnée ne permet d'identifier une personne : `ID_code` est un numéro interne.
+Aucune donnée ne permet d'identifier une personne : `ID` est un numéro interne.
 
 
 ## Ce que contient chaque colonne
 
-| Colonne | Type | Ce que c'est |
+| Famille | Nombre | Ce que c'est |
 |---|---|---|
-| `ID_code` | texte | identifiant du client |
-| `var_0` … `var_199` | **décimal** | **200 variables continues anonymisées** |
-| `target` | 0/1 | **la cible** : 1 = transaction réalisée |
+| `ID` | 1 | identifiant du client |
+| `saldo_` | **71** | **soldes** : montants détenus, à différentes dates |
+| `imp_` | **49** | **imports** : montants des opérations |
+| `num_` | **143** | **nombres** : comptages d'opérations, de produits, de contrats |
+| `ind_` | **75** | **indicateurs** : présence/absence, 0 ou 1 |
+| `delta_` | **26** | **variations** entre deux dates |
+| `var3`, `var15`, `var21`… | 6 | quelques variables isolées, hors famille |
+| `TARGET` | 1 | **la cible** : 1 = client mécontent |
 
-**Ce qui est mesuré sur les données livrées, et qui doit orienter votre travail :**
+**Trois faits mesurés sur les données livrées, et ils comptent :**
 
-- les 200 variables s'étendent de **−73,8 à +65,4** : ce sont des valeurs **centrées**, pas des
-  montants, et **124 d'entre elles prennent des valeurs négatives** ;
-- **aucune valeur manquante** ;
-- **aucun nom parlant** : il n'existe aucune description publiée de `var_57`. Vous ne pouvez pas
-  raisonner par le métier — vous devez **mesurer** ce que chaque variable apporte, seule puis à
-  plusieurs.
+- **97 colonnes sur 370 sont constantes** sur un échantillon de 4 000 lignes : elles ne séparent rien.
+  À vous de vérifier lesquelles, et de décider ce que vous en faites ;
+- **`var3` contient la valeur `-999999`** dans une petite minorité de lignes : c'est une **sentinelle**
+  de valeur manquante, pas un montant ;
+- aucune valeur n'est vide au sens `NaN` : une valeur manquante est **codée**, et il faut la reconnaître.
 
 
 **Ce que Kaggle documente, et ce qu'il ne documente pas.** La page *Data* de cette compétition ne
@@ -62,7 +66,7 @@ volontaire : votre travail est de **mesurer** ce que chaque variable apporte, pa
 
 **Un dépôt de code**, pas un notebook :
 
-1. un **pipeline exécutable** qui prend `a_decider.csv` et produit `ID_code,target` — une **décision** ;
+1. un **pipeline exécutable** qui prend `a_decider.csv` et produit `ID,TARGET` — une **décision** ;
 2. le **protocole de validation** retenu, justifié ;
 3. les **essais**, y compris ceux qui ont échoué, avec leur score ;
 4. une **note de 3 pages** : décision, métrique et seuil, méthode, résultat chiffré, ce qui a échoué ;
@@ -80,8 +84,8 @@ téléchargez **le dossier de votre sujet** — pas les autres — et vous chois
 
 | | |
 |---|---|
-| Dossier du sujet | **`Sujet_08_Santander_Transaction/`** |
-| Poids attendu | **302,3 Mo** |
+| Dossier du sujet | **`Sujet_05_Santander_Satisfaction/`** |
+| Poids attendu | **75,6 Mo** |
 | Contenu | les fichiers listés dans « Ce que vous recevez » |
 
 Après téléchargement, vérifiez que rien n'est tronqué : le poids du dossier doit correspondre, et
@@ -120,8 +124,8 @@ Kaggle ne voit pas votre disque : il faut **lui donner vos fichiers**, en créan
 données. C'est vous qui le déposez, pour votre usage — le jeu est **privé par défaut**.
 
 1. **kaggle.com/datasets** → **New Dataset**.
-2. Déposez les fichiers du dossier `Sujet_08_Santander_Transaction/` (glisser-déposer), nommez le jeu de données
-   `esgc-vak-sujet-08-…`, puis **Create**.
+2. Déposez les fichiers du dossier `Sujet_05_Santander_Satisfaction/` (glisser-déposer), nommez le jeu de données
+   `esgc-vak-sujet-05-…`, puis **Create**.
 3. Dans votre carnet : **Add Input** → onglet **Datasets** → filtre **Your Datasets** → sélectionnez
    le vôtre → **Add**.
 4. Les fichiers apparaissent dans **`/kaggle/input/<nom-de-votre-jeu>/`**, en **lecture seule**.
@@ -167,40 +171,39 @@ pipeline tourne en moins de 10 minutes sur CPU.
 
 ### Bloc 1 — avant la séance 5 · *la décision et la mesure*
 
-- **La métrique** : ce qu'elle récompense, ce qu'elle ignore.
-- **Le coût** : une vente manquée contre une sollicitation inutile. Chiffrez les deux.
-- **La règle métier** : comment la banque trie-t-elle aujourd'hui, sans modèle ? Mesurez-la. C'est
-  votre plancher.
-- **Le protocole de validation** : comment vous découpez `train.csv`, et pourquoi.
+- **La métrique** : laquelle, et **ce qu'elle récompense**. Une métrique peut être satisfaite par un
+  modèle qui ne trouve personne.
+- **Le coût** : ce que coûte un client mécontent qu'on n'a pas rappelé, et ce que coûte un appel
+  inutile. Les deux n'ont pas le même prix.
+- **La règle métier** : comment la banque trie-t-elle ses clients aujourd'hui, sans modèle ?
+  Mesurez-le. C'est votre plancher.
+- **Le protocole de validation** : comment vous découpez `train.csv`, et pourquoi ce découpage-là.
 
 ### Bloc 2 — avant la séance 9 · *le pipeline*
 
 - Le pipeline complet, exécutable d'un bout à l'autre.
 - **Au moins huit essais**, dont ceux qui ont échoué, chacun avec son score.
-- **La question de ce sujet** : que vaut **chaque variable prise seule** ? Et que vaut le modèle
-  quand on n'en garde qu'une, cinq, dix, cinquante, cent ? **Tracez cette courbe.** C'est elle qui
-  décidera de votre sélection — et elle vous apprendra quelque chose sur la table que les autres
-  sujets ne vous apprendraient pas.
+- **La sélection de variables** : il y en a 369. Les garder toutes coûte du temps — mesurez-le, et
+  décidez.
 - **L'analyse d'erreurs** : sur quels clients vous vous trompez.
 
 ### Bloc 3 — avant la séance 13 · *le dépôt et la robustesse*
 
 - Le dépôt propre, la note de 3 pages, la model card, la fiche de données.
 - **Trois mutations nommées**, chacune applicable en **une cellule**.
-- Le test de robustesse, et la décision finale sur les 40 000 clients.
+- Le test de robustesse, et la décision finale sur les 15 204 clients.
 
 ## Comment vous êtes évalués
 
 Voir la grille du cours. Trois points pèsent particulièrement ici :
 
-- **la justification de la sélection de variables** : garder les 200 « au cas où » n'est pas un choix,
-  c'est une absence de choix — et elle se mesure, en temps comme en qualité ;
-- **le chiffre contre le plancher** : votre score se rapporte à une règle sans modèle, mesurée ;
+- **la métrique et le seuil** : un modèle qui ne trouve personne peut afficher un score flatteur ;
+- **le chiffre contre le plancher** : votre score se rapporte à la règle métier, pas à zéro ;
 - **la vérité du journal** : le journal consigne les essais, y compris ceux qui ont échoué.
 
 ## Deux règles du cours
 
-**Pas de fuite.** Une information inconnue **au moment où la décision est prise** ne peut pas entrer
+**Pas de fuite.** Une information inconnue **au moment où le dossier est ouvert** ne peut pas entrer
 dans le modèle.
 
 **Le code doit rester réparable.** On doit pouvoir passer d'une version à l'autre en changeant une
