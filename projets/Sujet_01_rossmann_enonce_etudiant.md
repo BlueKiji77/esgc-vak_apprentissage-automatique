@@ -131,7 +131,7 @@ lignes de `a_estimer.csv` / `a_decider.csv` / `horizon.csv`, pas sur la table co
 ## Travailler : récupérer les données, coder, sauvegarder
 
 Les données du cours sont sur le **Drive du cours**, en lecture seule — **dossier du sujet :**
-**https://drive.google.com/drive/folders/1oaTj6bZKs4dPJUWei0UF0WrgUp5uc5_D?usp=sharing**. Vous téléchargez **le dossier de votre sujet** — pas les autres — et vous choisissez
+**https://drive.google.com/drive/folders/1KLWXCT5LadP7q3go_QcdpUkJiHH63zGk?usp=sharing**. Vous téléchargez **le dossier de votre sujet** — pas les autres — et vous choisissez
 ensuite **où coder**. Le lien est rappelé au **premier écran du carnet de démarrage**.
 
 Le dossier contient **trois choses** : cet énoncé, le **carnet de démarrage** (`Carnet_de_demarrage.ipynb`)
