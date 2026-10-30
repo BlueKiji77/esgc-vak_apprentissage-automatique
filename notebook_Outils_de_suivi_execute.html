@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8">
+<title>notebook_Outils_de_suivi — exécuté</title>
+<style>
+ body{max-width:52rem;margin:2rem auto;padding:0 1rem;line-height:1.55;
+       font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#1b1b1b}
+ h1,h2,h3,h4{line-height:1.25}
+ table{border-collapse:collapse;margin:1rem 0;font-size:.92em}
+ td,th{border:1px solid #ccc;padding:.25rem .5rem;text-align:left}
+ th{background:#f2f2f2}
+ pre{background:#f6f8fa;padding:.7rem .9rem;overflow-x:auto;border-radius:4px;font-size:.88em}
+ pre.out{background:#fff;border-left:3px solid #4a7c9b}
+ code{font-family:ui-monospace,Consolas,monospace}
+ blockquote{margin:1rem 0;padding:.4rem 1rem;border-left:3px solid #b5651d;background:#fdf7f2}
+ .note{background:#eef4f9;border:1px solid #c8d8e4;padding:.7rem 1rem;border-radius:4px}
+</style></head><body>
+<h1>notebook_Outils_de_suivi</h1>
+<p class="note">Copie <strong>exécutée</strong> du carnet, pour la relecture : les sorties sont celles
+d'une exécution complète sur les données du cours. Le carnet à importer dans Kaggle reste
+<code>notebook_Outils_de_suivi.ipynb</code>, qui part sans sorties. Si un chiffre diffère, c'est cette copie qui a raison :
+elle a tourné.</p>
+<pre># Les outils de suivi — mode d&#x27;emploi
+
+**Ce que ce carnet montre.** Le cours ne demande pas seulement un score : il demande un
+**tableau**. Ce carnet explique, une fonction à la fois, comment remplir ce tableau, et
+**pourquoi** chaque fonction existe.
+
+Il est autonome : il ne lit aucun fichier du cours. Il fabrique une petite table, puis montre
+chaque outil en action. Vous pouvez l&#x27;exécuter de haut en bas.
+
+**Les cinq outils, et la question à laquelle chacun répond :**
+
+| L&#x27;outil | La question |
+|---|---|
+| `prevoir` / `noter` / `essai` | qu&#x27;ai-je annoncé, et l&#x27;ai-je mesuré après ? |
+| `constat` | qu&#x27;ai-je vu dans les données, avec quel chiffre ? |
+| `hypothese` | qu&#x27;est-ce que je crois, et qu&#x27;est-ce qui me contredirait ? |
+| `journal` | qu&#x27;ai-je décidé, et pourquoi — sans parler du score ? |
+| `controle` / `verifier` | ma réponse a-t-elle la bonne forme ? |
+</pre>
+<pre>## La petite table, et la barre
+
+On fabrique une table jouet : 20 000 lignes, une cible rare (20 %), dix colonnes. On la coupe,
+on entraîne un modèle, et on calcule la **barre de bruit** : l&#x27;erreur-type d&#x27;une exactitude sur
+le jeu de contrôle.
+
+Cette barre sert plus loin : un effet plus petit que son **double** ne se lit pas.
+</pre>
+<pre><code># une table jouet, un modèle, et la barre de bruit
+import numpy as np
+import pandas as pd
+from sklearn.datasets import make_classification
+from sklearn.ensemble import HistGradientBoostingClassifier
+from sklearn.model_selection import train_test_split
+
+X, y = make_classification(n_samples=20000, n_features=10, n_informative=6,
+                           weights=[0.8, 0.2], random_state=0)
+X = pd.DataFrame(X, columns=[f&#x27;x{i}&#x27; for i in range(X.shape[1])])
+y = pd.Series(y, name=&#x27;cible&#x27;)
+Xtr, Xval, ytr, yval = train_test_split(X, y, test_size=0.25, stratify=y, random_state=0)
+
+modele = HistGradientBoostingClassifier(random_state=0).fit(Xtr, ytr)
+reference = 100 * max(y.mean(), 1 - y.mean())
+score_interne = 100 * modele.score(Xval, yval)
+p = score_interne / 100
+barre = 100 * (p * (1 - p) / len(yval)) ** 0.5
+print(f&#x27;reference : {reference:.2f} %   modele : {score_interne:.2f} %&#x27;)
+print(f&#x27;barre de bruit : {barre:.2f} point   double : {2 * barre:.2f}&#x27;)
+</code></pre>
+<pre class='out'>reference : 79.76 %   modele : 96.08 %
+barre de bruit : 0.27 point   double : 0.55
+</pre>
+<pre>## 1. Annoncer avant de mesurer — `prevoir`, `noter`, `essai`
+
+**Le problème.** Un essai dont on n&#x27;a rien annoncé n&#x27;est pas un essai : c&#x27;est une observation
+faite après coup. Le résultat plaît toujours, et on ne peut plus le contredire.
+
+**La réponse.** `prevoir` écrit l&#x27;attente **avant**, avec l&#x27;heure. `noter` enregistre la mesure
+et **refuse** un essai qui n&#x27;a pas été annoncé. `essai` va plus loin : il prend la mesure
+lui-même, donc l&#x27;ordre est prouvé, pas seulement demandé.
+
+**La règle d&#x27;écriture.** Dans `noter`, « attendu » porte un **signe et une raison**, jamais une
+valeur. Personne ne peut prédire de combien un score va bouger.
+</pre>
+<pre><code># les trois fonctions du rituel
+from datetime import datetime
+
+ESSAIS = []
+PREDICTIONS = []
+
+def prevoir(essai, attendu, raison):
+    &quot;&quot;&quot;Écrit ce que vous attendez AVANT de mesurer — horodaté.&quot;&quot;&quot;
+    PREDICTIONS[:] = [p for p in PREDICTIONS if p[&#x27;essai&#x27;] != essai]
+    PREDICTIONS.append({&#x27;essai&#x27;: essai, &#x27;attendu&#x27;: attendu, &#x27;raison&#x27;: raison,
+                        &#x27;écrit à&#x27;: datetime.now().strftime(&#x27;%H:%M:%S&#x27;)})
+    display(pd.DataFrame(PREDICTIONS))
+
+def noter(hypothese, changement, attendu, score):
+    &quot;&quot;&quot;Ajoute une ligne au tableau. Refuse un essai non annoncé.&quot;&quot;&quot;
+    prevu = [p for p in PREDICTIONS if p[&#x27;essai&#x27;] == hypothese]
+    if not prevu:
+        print(f&#x27;  refusé : aucune prédiction pour « {hypothese} ».&#x27;)
+        print(&#x27;  Écrivez prevoir(...) d\&#x27;abord — l\&#x27;ordre est vérifié, pas seulement demandé.&#x27;)
+        return
+    ligne = {&#x27;hypothèse&#x27;: hypothese, &#x27;changement&#x27;: changement, &#x27;attendu&#x27;: attendu,
+             &#x27;mesuré&#x27;: round(score, 2),
+             &#x27;prédiction écrite avant ?&#x27;: &#x27;oui, à &#x27; + prevu[0][&#x27;écrit à&#x27;]}
+    ESSAIS[:] = [e for e in ESSAIS if e[&#x27;hypothèse&#x27;] != hypothese] + [ligne]
+    display(pd.DataFrame(ESSAIS))
+
+def essai(nom, mesure, changement=&#x27;&#x27;, attendu=&#x27;&#x27;):
+    &quot;&quot;&quot;Le chemin strict : la mesure est prise ici, donc l&#x27;ordre est prouvé.&quot;&quot;&quot;
+    prevu = [p for p in PREDICTIONS if p[&#x27;essai&#x27;] == nom]
+    if not prevu:
+        print(f&#x27;refusé : aucune prédiction pour « {nom} ». Écrivez prevoir(...) d\&#x27;abord.&#x27;)
+        return None
+    score = 100 * mesure()
+    noter(nom, changement or &#x27;voir la question&#x27;, attendu or prevu[0][&#x27;attendu&#x27;], score)
+    return score
+</code></pre>
+
+<pre><code># 1) sans annonce : la ligne est refusée
+noter(&#x27;deux cents arbres&#x27;, &#x27;max_iter=200&#x27;, &#x27;un peu mieux&#x27;, 82.0)
+
+# 2) avec annonce : la ligne entre, et l&#x27;heure est là
+modele_200 = HistGradientBoostingClassifier(max_iter=200, random_state=0).fit(Xtr, ytr)
+prevoir(&#x27;deux cents arbres&#x27;, &#x27;+&#x27;, &#x27;plus d\&#x27;arbres, un gain faible et difficile à voir&#x27;)
+noter(&#x27;deux cents arbres&#x27;, &#x27;max_iter=200&#x27;, &#x27;+&#x27;, 100 * modele_200.score(Xval, yval))
+
+# 3) le chemin strict : la mesure est prise dans l&#x27;appel
+prevoir(&#x27;cent arbres&#x27;, &#x27;+&#x27;, &#x27;déjà mesuré plus haut, on garde la trace&#x27;)
+essai(&#x27;cent arbres&#x27;, lambda: modele.score(Xval, yval))
+</code></pre>
+<pre class='out'>  refusé : aucune prédiction pour « deux cents arbres ».
+  Écrivez prevoir(...) d&#x27;abord — l&#x27;ordre est vérifié, pas seulement demandé.
+               essai  ...   écrit à
+0  deux cents arbres  ...  11:54:17
+
+[1 rows x 4 columns]
+           hypothèse    changement attendu  mesuré prédiction écrite avant ?
+0  deux cents arbres  max_iter=200       +    96.0           oui, à 11:54:17
+               essai  ...   écrit à
+0  deux cents arbres  ...  11:54:17
+1        cent arbres  ...  11:54:17
+
+[2 rows x 4 columns]
+           hypothèse        changement  ... mesuré  prédiction écrite avant ?
+0  deux cents arbres      max_iter=200  ...  96.00            oui, à 11:54:17
+1        cent arbres  voir la question  ...  96.08            oui, à 11:54:17
+
+[2 rows x 5 columns]
+</pre>
+<pre>**Pourquoi ces trois fonctions.** `noter` ne vérifie pas que vous avez annoncé : il
+**refuse** la ligne. L&#x27;ordre n&#x27;est pas une consigne, c&#x27;est une contrainte. Et ré-exécuter la
+cellule **remplace** la ligne au lieu de la dupliquer : le tableau final ne dépend pas du nombre
+d&#x27;essais ratés.
+
+`prevoir` garantit qu&#x27;une prédiction existait avant la ligne ; `essai` garantit en plus que la
+mesure a été prise après. C&#x27;est la différence entre « l&#x27;ordre est écrit » et « l&#x27;ordre est
+prouvé ».
+</pre>
+<pre>## 2. Le constat — `constat`
+
+**Le problème.** « La colonne est inutile » n&#x27;est pas un constat : c&#x27;est une impression. Un
+constat se relit par quelqu&#x27;un d&#x27;autre, et se vérifie.
+
+**La réponse.** Quatre morceaux : l&#x27;**observation**, le **chiffre** exact, la **comparaison**
+qui donne un sens au chiffre, et la **conséquence**.
+</pre>
+<pre><code># les constats, et la règle qui les rend réutilisables
+CONSTATS = []
+
+def constat(observation, chiffre, comparaison, consequence):
+    &quot;&quot;&quot;observation : ce qu&#x27;on a vu · chiffre : la mesure exacte
+       comparaison : par rapport à quoi ? · conséquence : garder, écarter, surveiller.&quot;&quot;&quot;
+    ligne = {&#x27;observation&#x27;: observation, &#x27;chiffre&#x27;: chiffre,
+             &#x27;comparaison&#x27;: comparaison, &#x27;conséquence&#x27;: consequence}
+    CONSTATS[:] = [c for c in CONSTATS if c[&#x27;observation&#x27;] != observation] + [ligne]
+    display(pd.DataFrame(CONSTATS))
+
+constat(&#x27;une colonne ne dit rien&#x27;,
+        f&quot;{X[&#x27;x0&#x27;].nunique()} valeurs distinctes&quot;,
+        f&quot;sur {len(X)} lignes : une colonne à peu près constante&quot;,
+        &quot;l&#x27;écarter, et mesurer ce qu&#x27;on y gagne&quot;)
+constat(&#x27;la cible est déséquilibrée&#x27;,
+        f&#x27;{100 * y.mean():.2f} % de positifs&#x27;,
+        &#x27;contre 50 % pour un problème équilibré&#x27;,
+        &#x27;le dire avec le chiffre : cela change la métrique&#x27;)
+</code></pre>
+<pre class='out'>               observation  ...                             conséquence
+0  une colonne ne dit rien  ...  l&#x27;écarter, et mesurer ce qu&#x27;on y gagne
+
+[1 rows x 4 columns]
+                  observation  ...                                        conséquence
+0     une colonne ne dit rien  ...             l&#x27;écarter, et mesurer ce qu&#x27;on y gagne
+1  la cible est déséquilibrée  ...  le dire avec le chiffre : cela change la métrique
+
+[2 rows x 4 columns]
+</pre>
+<pre><code># ré-exécuter le même constat REMPLACE la ligne, il ne la double pas
+constat(&#x27;la cible est déséquilibrée&#x27;,
+        f&#x27;{100 * y.mean():.2f} % de positifs&#x27;,
+        &#x27;contre 50 % pour un problème équilibré, et 20 % visés à la construction&#x27;,
+        &#x27;le dire avec le chiffre, et vérifier que la table le tient&#x27;)
+</code></pre>
+<pre class='out'>                  observation  ...                                        conséquence
+0     une colonne ne dit rien  ...             l&#x27;écarter, et mesurer ce qu&#x27;on y gagne
+1  la cible est déséquilibrée  ...  le dire avec le chiffre, et vérifier que la ta...
+
+[2 rows x 4 columns]
+</pre>
+<pre>**Pourquoi.** Le chiffre seul ne dit rien ; la comparaison le rend lisible ; la conséquence
+engage une décision. Et la clé est l&#x27;**observation** : ré-exécuter remplace, donc un tableau
+relu ne contient jamais deux versions de la même observation.
+</pre>
+<pre>## 3. L&#x27;hypothèse — `hypothese`
+
+**Le problème.** Une hypothèse qu&#x27;on ne peut pas contredire n&#x27;est pas une hypothèse. « Cette
+colonne devrait aider » ne dit ni comment on le teste, ni ce qui prouverait le contraire.
+
+**La réponse.** Quatre morceaux : la **feature**, ce qu&#x27;elle **raconte**, **comment on la teste**,
+et ce qui la **contredirait** — annoncé avant la mesure.
+</pre>
+<pre><code># les hypothèses, et le critère annoncé avant
+HYPOTHESES = []
+
+def hypothese(feature, ce_qu_elle_raconte, comment_on_la_test, ce_qui_la_contredirait):
+    &quot;&quot;&quot;Une hypothèse est une prédiction qu&#x27;on peut tester, avec un critère annoncé AVANT.&quot;&quot;&quot;
+    ligne = {&#x27;feature&#x27;: feature, &#x27;ce qu\&#x27;elle raconte&#x27;: ce_qu_elle_raconte,
+             &#x27;test&#x27;: comment_on_la_test, &#x27;contredite si&#x27;: ce_qui_la_contredirait}
+    HYPOTHESES[:] = [h for h in HYPOTHESES if h[&#x27;feature&#x27;] != feature] + [ligne]
+    display(pd.DataFrame(HYPOTHESES))
+
+hypothese(&#x27;x1&#x27;, &#x27;elle sépare les deux classes&#x27;,
+          &#x27;ajouter x1 seule au modèle, même découpage&#x27;,
+          &#x27;le score ne bouge pas de plus de deux barres&#x27;)
+hypothese(&#x27;x7&#x27;, &#x27;elle apporte un signal que les autres n\&#x27;ont pas&#x27;,
+          &#x27;ajouter x7 et comparer au modèle sans elle&#x27;,
+          &#x27;le score baisse, ou le gain reste sous la barre&#x27;)
+</code></pre>
+<pre class='out'>  feature  ...                                 contredite si
+0      x1  ...  le score ne bouge pas de plus de deux barres
+
+[1 rows x 4 columns]
+  feature  ...                                    contredite si
+0      x1  ...     le score ne bouge pas de plus de deux barres
+1      x7  ...  le score baisse, ou le gain reste sous la barre
+
+[2 rows x 4 columns]
+</pre>
+<pre>**Pourquoi.** Le champ « contredite si » est celui qui compte : il transforme une croyance en
+test. Sans lui, on trouve toujours une raison de garder la colonne qu&#x27;on aime.
+</pre>
+<pre>## 4. Le journal — `journal`
+
+**Le problème.** Une décision de nettoyage ne gagne presque jamais de point. Elle doit donc
+gagner autre chose : une **raison** qu&#x27;on peut lire à un audit, et un **effet** mesuré.
+
+**La réponse.** Cinq colonnes : la décision, le choix, la raison **sans le score**, l&#x27;effet
+mesuré, et si cet effet dépasse le **double de la barre**.
+</pre>
+<pre><code># le journal de nettoyage
+JOURNAL = []
+
+def journal(decision, choix, raison, effet):
+    &quot;&quot;&quot;Décision, choix, raison d&#x27;audit, effet mesuré — comparé au double de la barre.&quot;&quot;&quot;
+    JOURNAL.append({&#x27;décision&#x27;: decision, &#x27;choix&#x27;: choix,
+                    &#x27;raison (sans le score)&#x27;: raison,
+                    &#x27;effet mesuré&#x27;: round(effet, 2),
+                    &#x27;&gt; double de la barre ?&#x27;: &#x27;oui&#x27; if abs(effet) &gt; 2 * barre else &#x27;non&#x27;})
+    display(pd.DataFrame(JOURNAL))
+
+journal(&#x27;des colonnes inutiles&#x27;, &#x27;écartées&#x27;,
+        &#x27;constante ou redondante : elle ne décrit aucune ligne&#x27;, 0.01)
+journal(&#x27;un code non documenté&#x27;, &#x27;gardé, en le sachant inexpliqué&#x27;,
+        &#x27;aucun dictionnaire ne dit ce que vaut ce code ; le retirer serait décider sans savoir&#x27;, 0.10)
+journal(&#x27;un trou qui suit la réponse&#x27;, &#x27;fuite — écartée&#x27;,
+        &#x27;le trou est produit par la réponse : le garder serait prédire avec elle&#x27;, 0.72)
+</code></pre>
+<pre class='out'>                décision     choix  ... effet mesuré  &gt; double de la barre ?
+0  des colonnes inutiles  écartées  ...         0.01                     non
+
+[1 rows x 5 columns]
+                décision  ... &gt; double de la barre ?
+0  des colonnes inutiles  ...                    non
+1  un code non documenté  ...                    non
+
+[2 rows x 5 columns]
+                      décision  ... &gt; double de la barre ?
+0        des colonnes inutiles  ...                    non
+1        un code non documenté  ...                    non
+2  un trou qui suit la réponse  ...                    oui
+
+[3 rows x 5 columns]
+</pre>
+<pre>**Pourquoi.** L&#x27;effet mesuré seul ne suffit pas : +0,72 sur une fuite n&#x27;est pas un gain, c&#x27;est
+la mesure de ce qu&#x27;une fuite rapporte. La colonne « &gt; double de la barre ? » répond oui ou non,
+et la raison, elle, ne cite jamais le score — sinon elle ne tiendrait pas à l&#x27;audit.
+</pre>
+<pre>## 5. Les contrôles — `controle` et `verifier`
+
+**Le problème.** Un contrôle qui dit la valeur attendue supprime l&#x27;exercice. Un contrôle qui
+crie avant que la réponse soit écrite décourage.
+
+**La réponse.** `controle` vérifie une **forme** — un type, une plage, une dimension, une
+cohérence avec vos autres réponses — et **se tait** tant que la réponse n&#x27;est pas écrite. Il ne
+compare jamais à la valeur juste.
+</pre>
+<pre><code># le contrôleur, et son silence quand la réponse manque
+VERIFICATIONS = []
+
+def verifier(nom, condition, indice=&#x27;&#x27;):
+    &quot;&quot;&quot;Contrôle silencieux : il ne dit jamais la valeur attendue.&quot;&quot;&quot;
+    VERIFICATIONS.append({&#x27;contrôle&#x27;: nom, &#x27;tient&#x27;: bool(condition)})
+    print((&#x27;  ok        &#x27; if condition else &#x27;  À REVOIR  &#x27;) + nom
+          + (&#x27;&#x27; if condition else &#x27;   -&gt;   &#x27; + indice))
+
+def controle(nom, quoi, indice=&#x27;&#x27;):
+    &quot;&quot;&quot;Contrôle de forme : il se tait tant que la réponse n&#x27;est pas écrite.&quot;&quot;&quot;
+    try:
+        ok = bool(quoi())
+    except NameError:
+        print(f&#x27;  (pas encore écrit)  {nom}&#x27;)
+        return
+    except Exception as e:
+        print(f&#x27;  REVOIR    {nom}   -&gt;   {type(e).__name__} : {e}&#x27;)
+        return
+    VERIFICATIONS.append({&#x27;contrôle&#x27;: nom, &#x27;tient&#x27;: ok})
+    print((&#x27;  ok        &#x27; if ok else &#x27;  REVOIR    &#x27;) + nom + (&#x27;&#x27; if ok else &#x27;   -&gt;   &#x27; + indice))
+
+controle(&#x27;un seuil entre 0 et 1&#x27;, lambda: 0 &lt; mon_seuil &lt; 1, &#x27;un seuil, pas un pourcentage&#x27;)
+</code></pre>
+<pre class='out'>  (pas encore écrit)  un seuil entre 0 et 1
+</pre>
+<pre><code># la réponse est écrite, mais de la mauvaise forme : le contrôle le dit, sans donner la bonne
+mon_seuil = 50
+controle(&#x27;un seuil entre 0 et 1&#x27;, lambda: 0 &lt; mon_seuil &lt; 1, &#x27;un seuil, pas un pourcentage&#x27;)
+
+mon_seuil = 0.2
+controle(&#x27;un seuil entre 0 et 1&#x27;, lambda: 0 &lt; mon_seuil &lt; 1, &#x27;un seuil, pas un pourcentage&#x27;)
+
+verifier(&#x27;au moins deux contrôles exécutés&#x27;, len(VERIFICATIONS) &gt;= 2,         &#x27;au moins deux contrôles ont été exécutés&#x27;)
+</code></pre>
+<pre class='out'>  REVOIR    un seuil entre 0 et 1   -&gt;   un seuil, pas un pourcentage
+  ok        un seuil entre 0 et 1
+  ok        au moins deux contrôles exécutés
+</pre>
+<pre>**Pourquoi.** Un contrôle de forme attrape une réponse **mal formée**, pas une réponse fausse :
+c&#x27;est le professeur et le tableau d&#x27;essais qui jugent le raisonnement. Et il se tait avant que
+vous écriviez, parce qu&#x27;un contrôle qui parle dans le vide n&#x27;apprend rien.
+</pre>
+<pre>## Ce qu&#x27;on retient
+
+| L&#x27;outil | Ce qu&#x27;il empêche |
+|---|---|
+| `prevoir` / `noter` / `essai` | l&#x27;essai annoncé après coup, et le tableau qui double les lignes |
+| `constat` | l&#x27;impression présentée comme un résultat |
+| `hypothese` | la croyance qu&#x27;aucun test ne peut contredire |
+| `journal` | la décision sans raison, et le gain de fuite pris pour un gain |
+| `controle` / `verifier` | la réponse mal formée, et le contrôle qui donne la solution |
+
+**La règle commune.** Ces fonctions ne vous demandent pas d&#x27;être plus rigoureux : elles
+**appliquent** la rigueur à votre place. Le tableau qu&#x27;elles produisent est ce qu&#x27;on rend, et
+c&#x27;est lui qu&#x27;on relit — pas le score.
+</pre>
+</body></html>
