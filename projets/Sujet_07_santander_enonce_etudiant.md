@@ -1,5 +1,8 @@
 # Projet — Détecter la transaction d'un client
 
+> **Type de tâche** — **classification binaire**. Deux classes — **le client fera une transaction** ou non — avec **10,05 %** de positifs. Les variables sont anonymisées et sans nom métier : aucune connaissance du domaine ne peut remplacer la mesure.
+
+
 **Équipe de 3 · 6 semaines · rendu par dépôt**
 
 ---

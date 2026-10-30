@@ -1,5 +1,8 @@
 # Projet — Décider d'accorder ou de refuser un crédit
 
+> **Type de tâche** — **classification binaire déséquilibrée**. Deux classes — **défaut** ou **pas de défaut** — et **8,07 %** de positifs seulement. Ce n'est ni une régression, ni un classement à plusieurs classes : la question est *cette demande sera-t-elle remboursée ?*, et le déséquilibre est le cœur du problème.
+
+
 **Équipe de 3 · 6 semaines · rendu par dépôt**
 
 ---

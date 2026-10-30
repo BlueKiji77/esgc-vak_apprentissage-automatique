@@ -1,5 +1,8 @@
 # Projet — Estimer le revenu d'un visiteur d'un site marchand
 
+> **Type de tâche** — **régression sur une cible très asymétrique**. Une cible **continue** — le revenu apporté par un visiteur — nulle dans **98,60 %** des sessions. Ce n'est pas une classification : presque toutes les lignes valent zéro, et la métrique juge l'erreur sur une échelle logarithmique.
+
+
 **Équipe de 3 · 6 semaines · rendu par dépôt**
 
 ---

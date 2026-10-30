@@ -1,5 +1,8 @@
 # Projet — Prévoir les ventes par article, seize jours à l'avance
 
+> **Type de tâche** — **prévision — régression sur un panneau article × magasin**. Une cible **continue** (les unités vendues) sur un horizon de **16 jours**, pour 1 782 couples magasin × famille. Beaucoup de couples ne vendent rien certains jours : la cible est **intermittente**, et un zéro est une information, pas une absence.
+
+
 **Équipe de 3 · 6 semaines · rendu par dépôt**
 
 ---

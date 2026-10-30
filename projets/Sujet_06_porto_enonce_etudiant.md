@@ -1,5 +1,8 @@
 # Projet — Évaluer le risque d'un conducteur
 
+> **Type de tâche** — **classification binaire fortement déséquilibrée**. Deux classes — **sinistre déclaré** ou non — et **3,64 %** de positifs. La métrique est un **Gini**, c'est-à-dire deux fois l'aire sous la courbe moins un : elle mesure le **classement** des dossiers, pas la justesse d'un seuil.
+
+
 **Équipe de 3 · 6 semaines · rendu par dépôt**
 
 ---

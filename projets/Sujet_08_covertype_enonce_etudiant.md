@@ -1,5 +1,8 @@
 # Projet — Identifier le type de couvert forestier d'une parcelle
 
+> **Type de tâche** — **classification multiclasse**. **Sept classes** — les sept espèces d'arbres — et non deux. La distribution est très inégale (de **0,47 %** à **48,76 %** des parcelles) : une classe presque absente pèse autant qu'une classe majoritaire si on l'ignore.
+
+
 **Équipe de 3 · 6 semaines · rendu par dépôt**
 
 ---

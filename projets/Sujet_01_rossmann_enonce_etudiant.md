@@ -1,5 +1,8 @@
 # Énoncé du projet — Sujet 01 · Prévoir les ventes d'un magasin pour planifier les équipes
 
+> **Type de tâche** — **prévision — régression sur une série temporelle**. Une cible **continue** (les ventes du jour), un horizon de **48 jours**, une ligne par couple magasin × jour. Ce n'est pas une classification : l'erreur se mesure en unités de vente, pas en bonnes ou mauvaises décisions.
+
+
 > **Document étudiant.** Ce que vous savez, ce qu'on vous donne, ce qu'on attend — et rien de plus.
 
 ## Le problème

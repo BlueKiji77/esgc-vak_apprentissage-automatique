@@ -1,5 +1,8 @@
 # Projet — Identifier le client qui va se plaindre
 
+> **Type de tâche** — **classification binaire fortement déséquilibrée**. Deux classes — **mécontent** ou **satisfait** — et **3,96 %** de mécontents. Une exactitude de 96 % s'obtient en ne prédisant jamais « mécontent » : c'est pourquoi la métrique n'est pas l'exactitude.
+
+
 **Équipe de 3 · 6 semaines · rendu par dépôt**
 
 ---

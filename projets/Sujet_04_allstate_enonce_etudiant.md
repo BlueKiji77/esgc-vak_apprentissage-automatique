@@ -1,5 +1,8 @@
 # Projet — Estimer le montant d'un sinistre
 
+> **Type de tâche** — **régression continue**. Une cible **continue et positive** — le montant d'un sinistre — sans classe à prédire. La question n'est pas *y a-t-il un sinistre ?* mais *combien ?*, et l'erreur se paie en euros.
+
+
 **Équipe de 3 · 6 semaines · rendu par dépôt**
 
 ---
