@@ -292,6 +292,10 @@ def noter(hypothese, changement, attendu, score):
     display(pd.DataFrame(ESSAIS))
 </code></pre>
 
+<pre><code># les avertissements des bibliothèques sont coupés : ils ne sont pas la leçon
+import warnings; warnings.filterwarnings(&#x27;ignore&#x27;)
+</code></pre>
+
 <pre>### La matrice de confusion
 
 **Couche — la métrique.** La matrice est le socle de toutes les mesures qui suivent.
@@ -466,6 +470,40 @@ Quand c&#x27;est la bonne métrique : on ne sait pas laquelle des deux erreurs p
 chiffre, qui ne laisse pas un des deux s&#x27;effondrer.
 Sur notre matrice : 2 × 0,6217 × 0,1060 / (0,6217 + 0,1060) = **18,11 %**. La moyenne ordinaire
 donnerait 36 % : l&#x27;écart est la punition du déséquilibre entre précision et rappel.
+</pre>
+<pre>### Trois situations où la métrique change tout
+
+La même matrice, trois mondes. Ce qui décide de la métrique à suivre, ce n&#x27;est pas le modèle :
+c&#x27;est le prix des deux erreurs.
+
+**Une carte bancaire bloquée à tort.** Une banque surveille les paiements pour détecter la
+fraude. Chaque alerte bloque la carte du client : il appelle, attend, parfois change de banque.
+Ici, une **fausse alerte coûte cher**. On suit donc la **précision** : sur cent alertes, combien
+sont de vraies fraudes. Le rappel peut rester bas — rater une fraude coûte, mais bloquer des
+centaines de clients honnêtes coûte plus encore. Le seuil se règle **haut**, et l&#x27;équipe peut
+traiter à la main le peu d&#x27;alertes qui restent.
+
+**Un dépistage qui rate un cas.** Un test dépiste une maladie grave. Chaque cas manqué peut
+coûter la vie ; une alerte à tort déclenche un examen supplémentaire, désagréable mais sans
+danger. Ici, une **absence manquée coûte cher**. On suit donc le **rappel** : sur cent malades,
+combien sont détectés. Les fausses alertes sont acceptées, et le seuil se règle **bas**.
+
+**Un dossier de bourse vérifié à la main.** Une fondation à Cotonou reçoit 1 000 demandes.
+Un modèle repère les dossiers à vérifier, puis un agent tranche. Vérifier un dossier coûte 30 u. ;
+une bourse versée à tort en coûte 100 u. Sur ces demandes, 120 sont inéligibles. Au seuil actuel,
+le modèle envoie 200 dossiers. Cent sont inéligibles : la précision vaut 50 %. Vingt passent
+inaperçus : le rappel vaut 83 %. Baisser le seuil enverrait 350 dossiers. Le rappel monterait à
+98 %, mais 232 dossiers éligibles seraient vérifiés pour rien. Le coût total passerait de
+8 000 u. à 10 700 u. Ici, on surveille la **précision** : chaque alerte coûte une vérification.
+Le seuil actuel reste le bon.
+
+**Et notre clinique ?** Elle est entre les deux : une absence manquée coûte 100 u., une fausse
+alerte 25 u. Le coût est asymétrique, mais pas au point d&#x27;un dépistage. La décision se prend donc
+sur le **coût**. La précision et le rappel, eux, se lisent **ensemble** : la suite de ce carnet
+chiffre ce compromis, seuil par seuil.
+
+**La règle à retenir.** Avant de choisir une métrique, posez une seule question : laquelle des
+deux erreurs, et à quel prix ? La réponse donne la métrique, puis le seuil.
 </pre>
 <pre><code># les six métriques, recalculées depuis les quatre cases — jamais depuis une autre source
 exactitude = (VP + VN) / (VP + FP + FN + VN)
@@ -1008,6 +1046,12 @@ from sklearn.model_selection import train_test_split
 chemin_pannes = os.path.join(DOSSIER, &#x27;machine_failure.csv&#x27;)
 if not os.path.exists(chemin_pannes):
     chemin_pannes = os.path.join(os.path.dirname(DOSSIER), &#x27;machine_failure.csv&#x27;)
+# si le fichier est ajouté comme entrée séparée (Add Input), il vit sous /kaggle/input
+if not os.path.exists(chemin_pannes) and os.path.isdir(&#x27;/kaggle/input&#x27;):
+    for _racine, _, _fichiers in os.walk(&#x27;/kaggle/input&#x27;):
+        if &#x27;machine_failure.csv&#x27; in _fichiers:
+            chemin_pannes = os.path.join(_racine, &#x27;machine_failure.csv&#x27;)
+            break
 pannes = pd.read_csv(chemin_pannes)
 capteurs = [&#x27;Air temperature [K]&#x27;, &#x27;Process temperature [K]&#x27;, &#x27;Rotational speed [rpm]&#x27;,
             &#x27;Torque [Nm]&#x27;, &#x27;Tool wear [min]&#x27;]
@@ -1108,6 +1152,72 @@ plt.show()
 | **RMSLE** | la même chose, sur les logarithmes | l’erreur relative, sans unité | quand les ordres de grandeur varient (petites et grandes cliniques) |
 | **R²** | 1 − variance des erreurs / variance de la vérité | « la part de la variation expliquée », négatif si le modèle fait pire que la moyenne | pour comparer deux modèles sur la même série |
 | **MAPE** | moyenne des écarts rapportés à la vérité, en % | « on se trompe de X % » | **jamais** quand la vérité peut valoir zéro |
+</pre>
+<pre>### La démonstration, métrique par métrique (cible numérique)
+
+Sur notre contrôle : la clinique **C01**, 219 jours. La prévision est la moyenne du même jour
+de la semaine.
+
+**MAE — erreur absolue moyenne.**
+
+$$MAE = \frac{1}{N}\sum |\text{valeur vraie} - \text{valeur prévue}|$$
+
+Ce qu&#x27;elle calcule : l&#x27;écart moyen, dans l&#x27;unité de la cible. Ici, des rendez-vous.
+Quand c&#x27;est la bonne métrique : les erreurs de tailles voisines coûtent à peu près pareil, et
+une équipe veut une lecture simple.
+Cas réel : une cantine prévoit le nombre de repas. Un plat en trop et un plat manquant coûtent
+presque la même chose. La MAE dit « on se trompe de douze repas en moyenne ».
+Sur notre contrôle : **13,59 rendez-vous**.
+
+**RMSE — racine de l&#x27;erreur quadratique moyenne.**
+
+$$RMSE = \sqrt{\frac{1}{N}\sum (\text{valeur vraie} - \text{valeur prévue})^2}$$
+
+Ce qu&#x27;elle calcule : un écart moyen qui **punit les grosses erreurs**. Elle est toujours
+supérieure ou égale à la MAE.
+Quand c&#x27;est la bonne métrique : une erreur énorme coûte plus que plusieurs petites.
+Cas réel : la consommation électrique d&#x27;un quartier. Un pic mal prévu provoque une coupure ;
+plusieurs petits écarts se compensent. On veut que le modèle ne rate jamais le pic.
+Sur notre contrôle : **16,14** contre 13,59 pour la MAE. L&#x27;écart entre les deux mesure le poids
+des grosses erreurs.
+
+**RMSLE — racine de l&#x27;erreur quadratique moyenne des logarithmes.**
+
+$$RMSLE = \sqrt{\frac{1}{N}\sum \left(\log(1+\text{valeur vraie}) - \log(1+\text{valeur prévue})\right)^2}$$
+
+Ce qu&#x27;elle calcule : une erreur **relative**, sans unité, qui traite pareil une petite et une
+grande valeur.
+Quand c&#x27;est la bonne métrique : les ordres de grandeur varient beaucoup d&#x27;une ligne à l&#x27;autre.
+Cas réel : les ventes de boutiques de tailles très différentes. Cinq unités d&#x27;écart n&#x27;ont pas le
+même sens pour une boutique à dix et pour une à mille.
+Sur notre contrôle : **0,254**.
+
+**MAPE — erreur absolue moyenne en pourcentage.**
+
+$$MAPE = \frac{100}{N}\sum \frac{|\text{valeur vraie} - \text{valeur prévue}|}{\text{valeur vraie}}$$
+
+Ce qu&#x27;elle calcule : l&#x27;erreur en pourcentage, donc lisible sans connaître l&#x27;unité.
+Quand c&#x27;est la bonne métrique : la cible ne vaut **jamais zéro** et on veut parler en pourcentage.
+Cas réel : le chiffre d&#x27;affaires d&#x27;un magasin. « On se trompe de 8 % » se comprend sans savoir
+si le magasin fait cent mille ou dix millions.
+Le piège : une valeur vraie nulle fait diviser par zéro. Ici, **31 jours** de contrôle valent
+zéro rendez-vous.
+Sur notre contrôle, jours ouverts : **22,9 %**.
+
+**R² — coefficient de détermination.**
+
+$$R^2 = 1 - \frac{\text{variance des erreurs}}{\text{variance de la vérité}}$$
+
+Ce qu&#x27;elle calcule : la part de la variation de la cible que la prévision explique. 1 = parfaite ;
+0 = aussi bonne que la moyenne ; négatif = pire que la moyenne.
+Quand c&#x27;est la bonne métrique : comparer deux modèles sur la même série, pour savoir lequel suit
+le mieux les variations.
+Cas réel : deux modèles de fréquentation d&#x27;un musée. Le R² dit lequel explique le mieux les
+variations, pas lequel se trompe le moins en visiteurs.
+Sur notre contrôle : **0,645**, soit environ deux tiers de la variation expliquée.
+
+**La règle à retenir.** Choisir une métrique de régression, c&#x27;est choisir deux choses : l&#x27;unité
+dans laquelle on parle de l&#x27;erreur, et le poids donné aux grosses erreurs.
 </pre>
 <pre><code># la même prévision, jugée par cinq métriques
 from sklearn.metrics import mean_absolute_error, mean_squared_error, mean_squared_log_error, r2_score
