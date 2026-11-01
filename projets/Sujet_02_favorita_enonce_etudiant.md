@@ -172,7 +172,7 @@ slides ») mais sur des **décisions**. Chacune a un responsable nommé, qui doi
 Découper par tâche donne trois exécutants dont aucun ne peut défendre une décision. Découper par
 question donne trois responsables — et c'est ce que l'oral vérifie.
 
-**Sur ce sujet, le rôle dominant est le **constructeur**** — parce que 12,2 millions de lignes, dont 5 Go à lire : le chargement et le cache décident du temps qu'il vous reste pour réfléchir. Un premier chargement qui prend quarante minutes ne laisse plus de place à l'essai.
+**Sur ce sujet, le rôle dominant est le constructeur** — parce que 12,2 millions de lignes, dont 5 Go à lire : le chargement et le cache décident du temps qu'il vous reste pour réfléchir. Un premier chargement qui prend quarante minutes ne laisse plus de place à l'essai.
 
 ### La rotation aux trois actes
 

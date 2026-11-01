@@ -113,7 +113,7 @@ slides ») mais sur des **décisions**. Chacune a un responsable nommé, qui doi
 Découper par tâche donne trois exécutants dont aucun ne peut défendre une décision. Découper par
 question donne trois responsables — et c'est ce que l'oral vérifie.
 
-**Sur ce sujet, le rôle dominant est le **mesureur**** — parce que les 200 variables n'ont **pas de nom métier** : aucune connaissance du domaine ne peut remplacer la mesure. Le plancher est à **AUC 0,5639** — à peine mieux que le hasard, et c'est le protocole d'essai qui fait toute la différence.
+**Sur ce sujet, le rôle dominant est le mesureur** — parce que les 200 variables n'ont **pas de nom métier** : aucune connaissance du domaine ne peut remplacer la mesure. Le plancher est à **AUC 0,5639** — à peine mieux que le hasard, et c'est le protocole d'essai qui fait toute la différence.
 
 ### La rotation aux trois actes
 

@@ -121,7 +121,7 @@ slides ») mais sur des **décisions**. Chacune a un responsable nommé, qui doi
 Découper par tâche donne trois exécutants dont aucun ne peut défendre une décision. Découper par
 question donne trois responsables — et c'est ce que l'oral vérifie.
 
-**Sur ce sujet, le rôle dominant est le **mesureur**** — parce que 8,07 % de positifs : c'est le seuil et son coût qui décident du résultat utile. À 0,5 le coût des erreurs est de 48 665 ; à **0,099** il tombe à **32 239** — le même modèle, un tiers de perte en moins.
+**Sur ce sujet, le rôle dominant est le mesureur** — parce que 8,07 % de positifs : c'est le seuil et son coût qui décident du résultat utile. À 0,5 le coût des erreurs est de 48 665 ; à **0,099** il tombe à **32 239** — le même modèle, un tiers de perte en moins.
 
 ### La rotation aux trois actes
 

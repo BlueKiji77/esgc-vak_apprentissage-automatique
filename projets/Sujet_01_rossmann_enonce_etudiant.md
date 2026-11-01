@@ -146,7 +146,7 @@ slides ») mais sur des **décisions**. Chacune a un responsable nommé, qui doi
 Découper par tâche donne trois exécutants dont aucun ne peut défendre une décision. Découper par
 question donne trois responsables — et c'est ce que l'oral vérifie.
 
-**Sur ce sujet, le rôle dominant est le **constructeur**** — parce que 1 017 209 lignes à charger et un notebook qui doit tenir en **10 minutes** : c'est le temps d'exécution qui décide de ce qui est possible, pas l'ambition du modèle.
+**Sur ce sujet, le rôle dominant est le constructeur** — parce que 1 017 209 lignes à charger et un notebook qui doit tenir en **10 minutes** : c'est le temps d'exécution qui décide de ce qui est possible, pas l'ambition du modèle.
 
 ### La rotation aux trois actes
 

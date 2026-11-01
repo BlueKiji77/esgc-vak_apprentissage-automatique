@@ -137,7 +137,7 @@ slides ») mais sur des **décisions**. Chacune a un responsable nommé, qui doi
 Découper par tâche donne trois exécutants dont aucun ne peut défendre une décision. Découper par
 question donne trois responsables — et c'est ce que l'oral vérifie.
 
-**Sur ce sujet, le rôle dominant est l'**interprète**** — parce que sept classes, de **0,47 %** à **48,76 %** des parcelles : c'est la lecture de la matrice de confusion qui décide si le modèle sert à quelque chose. Un log-loss correct peut cacher une espèce jamais reconnue.
+**Sur ce sujet, le rôle dominant est l'interprète** — parce que sept classes, de **0,47 %** à **48,76 %** des parcelles : c'est la lecture de la matrice de confusion qui décide si le modèle sert à quelque chose. Un log-loss correct peut cacher une espèce jamais reconnue.
 
 ### La rotation aux trois actes
 

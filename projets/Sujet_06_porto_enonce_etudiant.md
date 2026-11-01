@@ -114,7 +114,7 @@ slides ») mais sur des **décisions**. Chacune a un responsable nommé, qui doi
 Découper par tâche donne trois exécutants dont aucun ne peut défendre une décision. Découper par
 question donne trois responsables — et c'est ce que l'oral vérifie.
 
-**Sur ce sujet, le rôle dominant est le **mesureur**** — parce que la métrique est un **Gini** (deux fois l'AUC moins un) : elle juge le **classement** des dossiers, pas la justesse d'un seuil. Et retirer les 20 colonnes de bruit pur coûte 87 secondes de calcul pour **−0,0048** de Gini.
+**Sur ce sujet, le rôle dominant est le mesureur** — parce que la métrique est un **Gini** (deux fois l'AUC moins un) : elle juge le **classement** des dossiers, pas la justesse d'un seuil. Et retirer les 20 colonnes de bruit pur coûte 87 secondes de calcul pour **−0,0048** de Gini.
 
 ### La rotation aux trois actes
 

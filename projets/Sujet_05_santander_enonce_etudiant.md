@@ -117,7 +117,7 @@ slides ») mais sur des **décisions**. Chacune a un responsable nommé, qui doi
 Découper par tâche donne trois exécutants dont aucun ne peut défendre une décision. Découper par
 question donne trois responsables — et c'est ce que l'oral vérifie.
 
-**Sur ce sujet, le rôle dominant est le **mesureur**** — parce que 3,96 % de mécontents : une exactitude de **96,04 %** s'obtient en ne prédisant jamais « mécontent » — et n'attrape alors **aucun** des 602 clients réellement mécontents. Seuls l'AUC et le seuil disent quelque chose.
+**Sur ce sujet, le rôle dominant est le mesureur** — parce que 3,96 % de mécontents : une exactitude de **96,04 %** s'obtient en ne prédisant jamais « mécontent » — et n'attrape alors **aucun** des 602 clients réellement mécontents. Seuls l'AUC et le seuil disent quelque chose.
 
 ### La rotation aux trois actes
 
