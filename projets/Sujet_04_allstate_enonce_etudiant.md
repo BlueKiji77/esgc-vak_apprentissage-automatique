@@ -97,6 +97,44 @@ Les données de ce sujet viennent d'une **compétition publique**. Si vous voule
 journal ce que vous en avez fait, et **restez sur la même découpe** : le rendu final porte sur les
 lignes de `a_estimer.csv` / `a_decider.csv` / `horizon.csv`, pas sur la table complète.
 
+## Les trois rôles, et comment ils tournent
+
+Vous êtes trois, et le projet ne se juge pas sur des **tâches** (« les features », « le modèle », « les
+slides ») mais sur des **décisions**. Chacune a un responsable nommé, qui doit pouvoir la défendre
+**seul**, sans ses coéquipiers.
+
+| Rôle | La question qu'il porte | Ce qu'il produit | La question qu'on lui posera |
+|---|---|---|---|
+| **Le mesureur** | *Sur quoi juge-t-on ?* | le découpage, le plancher, le protocole d'essai, le tableau des essais | « pourquoi cette métrique, et pas l'exactitude ? » |
+| **Le constructeur** | *Avec quoi, et en combien de temps ?* | le chargement, les variables, le pipeline reproductible, les **trois mutations nommées** | « montre-moi la mutation qui casse le découpage » |
+| **L'interprète** | *Que vaut le résultat, et que dit-il du monde ?* | l'analyse d'erreurs, la model card, le test de robustesse | « qui rates-tu le plus, et combien ça coûte ? » |
+
+Découper par tâche donne trois exécutants dont aucun ne peut défendre une décision. Découper par
+question donne trois responsables — et c'est ce que l'oral vérifie.
+
+**Sur ce sujet, le rôle dominant est le **mesureur** et l'**interprète**** — parce que l'écart entre la moyenne et la médiane vaut **8,9 %** d'erreur, et la queue de distribution — les gros sinistres — décide de qui est mal servi. Le constructeur, ici, a moins de marge : 132 colonnes, aucune valeur manquante.
+
+### La rotation aux trois actes
+
+Les trois actes sont **S5**, **S9** et **S13-S14**. À chaque acte, les rôles **tournent** : personne ne
+tient deux fois le même, et **le responsable du dépôt change**. Au bout des trois, chacun a porté les
+trois questions une fois.
+
+**Acte 1 (S5).** *Awa* est **mesureur** : plancher à **MAE 1 807,09** en prédisant la moyenne. *Brice* est **constructeur** : pipeline sur les 132 colonnes, encodage des catégorielles. *Chloé* est **interprète** : distribution des montants, et ce que la moyenne rate. **Awa signe.**
+
+**Acte 2 (S9).** *Brice* passe **mesureur** : moyenne contre médiane, et l'écart se mesure. *Chloé* passe **constructeur** : les trois mutations. *Awa* passe **interprète** : l'erreur sur les dix sinistres les plus lourds. **Brice signe.**
+
+**Acte 3 (S13-S14).** *Chloé* **mesureur**, *Awa* **constructeur**, *Brice* **interprète**. **Chloé signe.**
+
+**Ce que la rotation empêche.** Une équipe qui traite « moyenne ou médiane » comme un détail de code perd les 8,9 % — et ne sait pas dire, à l'oral, laquelle des deux elle a choisie.
+
+### Et si quelqu'un disparaît deux semaines ?
+
+Son rôle est **doublé** par celui qui l'a tenu à l'acte précédent — c'est précisément à cela que sert la
+rotation : au S9, chacun a déjà vu un autre rôle de l'intérieur. Le carnet de bord note la date de
+reprise, ce qui a été suspendu, et qui a signé à la place. Une équipe qui n'a pas doublé son rôle
+critique **avant** le S9 perdra du temps qu'elle ne rattrapera pas.
+
 ## Travailler : récupérer les données, coder, sauvegarder
 
 Les données du cours sont sur le **Drive du cours**, en lecture seule — **dossier du sujet :**

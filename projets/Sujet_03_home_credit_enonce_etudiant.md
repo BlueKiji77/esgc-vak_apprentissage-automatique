@@ -106,6 +106,44 @@ Les données de ce sujet viennent d'une **compétition publique**. Si vous voule
 journal ce que vous en avez fait, et **restez sur la même découpe** : le rendu final porte sur les
 lignes de `a_estimer.csv` / `a_decider.csv` / `horizon.csv`, pas sur la table complète.
 
+## Les trois rôles, et comment ils tournent
+
+Vous êtes trois, et le projet ne se juge pas sur des **tâches** (« les features », « le modèle », « les
+slides ») mais sur des **décisions**. Chacune a un responsable nommé, qui doit pouvoir la défendre
+**seul**, sans ses coéquipiers.
+
+| Rôle | La question qu'il porte | Ce qu'il produit | La question qu'on lui posera |
+|---|---|---|---|
+| **Le mesureur** | *Sur quoi juge-t-on ?* | le découpage, le plancher, le protocole d'essai, le tableau des essais | « pourquoi cette métrique, et pas l'exactitude ? » |
+| **Le constructeur** | *Avec quoi, et en combien de temps ?* | le chargement, les variables, le pipeline reproductible, les **trois mutations nommées** | « montre-moi la mutation qui casse le découpage » |
+| **L'interprète** | *Que vaut le résultat, et que dit-il du monde ?* | l'analyse d'erreurs, la model card, le test de robustesse | « qui rates-tu le plus, et combien ça coûte ? » |
+
+Découper par tâche donne trois exécutants dont aucun ne peut défendre une décision. Découper par
+question donne trois responsables — et c'est ce que l'oral vérifie.
+
+**Sur ce sujet, le rôle dominant est le **mesureur**** — parce que 8,07 % de positifs : c'est le seuil et son coût qui décident du résultat utile. À 0,5 le coût des erreurs est de 48 665 ; à **0,099** il tombe à **32 239** — le même modèle, un tiers de perte en moins.
+
+### La rotation aux trois actes
+
+Les trois actes sont **S5**, **S9** et **S13-S14**. À chaque acte, les rôles **tournent** : personne ne
+tient deux fois le même, et **le responsable du dépôt change**. Au bout des trois, chacun a porté les
+trois questions une fois.
+
+**Acte 1 (S5).** *Awa* est **mesureur** : découpage stratifié, plancher mesuré à **AUC 0,7127** en prédisant le taux de base. *Brice* est **constructeur** : pipeline sur 122 colonnes, manquants non comblés. *Chloé* est **interprète** : profil des demandes qui font défaut. **Awa signe.**
+
+**Acte 2 (S9).** *Brice* passe **mesureur** : il balaie le seuil et montre que **0,099** divise le coût par trois sans changer le modèle. *Chloé* passe **constructeur** et écrit les trois mutations. *Awa* passe **interprète** : les défauts manqués, par tranche de revenu. **Brice signe.**
+
+**Acte 3 (S13-S14).** *Chloé* **mesureur** (calibration, robustesse), *Awa* **constructeur**, *Brice* **interprète** (model card, coût métier). **Chloé signe.**
+
+**Ce que la rotation empêche.** L'équipe qui laisse Awa seule régler le seuil se retrouve à l'oral devant « pourquoi 0,099 ? » sans réponse. Ce n'est pas un détail de réglage : c'est **la** décision du sujet.
+
+### Et si quelqu'un disparaît deux semaines ?
+
+Son rôle est **doublé** par celui qui l'a tenu à l'acte précédent — c'est précisément à cela que sert la
+rotation : au S9, chacun a déjà vu un autre rôle de l'intérieur. Le carnet de bord note la date de
+reprise, ce qui a été suspendu, et qui a signé à la place. Une équipe qui n'a pas doublé son rôle
+critique **avant** le S9 perdra du temps qu'elle ne rattrapera pas.
+
 ## Travailler : récupérer les données, coder, sauvegarder
 
 Les données du cours sont sur le **Drive du cours**, en lecture seule — **dossier du sujet :**

@@ -98,6 +98,44 @@ Les données de ce sujet viennent d'une **compétition publique**. Si vous voule
 journal ce que vous en avez fait, et **restez sur la même découpe** : le rendu final porte sur les
 lignes de `a_estimer.csv` / `a_decider.csv` / `horizon.csv`, pas sur la table complète.
 
+## Les trois rôles, et comment ils tournent
+
+Vous êtes trois, et le projet ne se juge pas sur des **tâches** (« les features », « le modèle », « les
+slides ») mais sur des **décisions**. Chacune a un responsable nommé, qui doit pouvoir la défendre
+**seul**, sans ses coéquipiers.
+
+| Rôle | La question qu'il porte | Ce qu'il produit | La question qu'on lui posera |
+|---|---|---|---|
+| **Le mesureur** | *Sur quoi juge-t-on ?* | le découpage, le plancher, le protocole d'essai, le tableau des essais | « pourquoi cette métrique, et pas l'exactitude ? » |
+| **Le constructeur** | *Avec quoi, et en combien de temps ?* | le chargement, les variables, le pipeline reproductible, les **trois mutations nommées** | « montre-moi la mutation qui casse le découpage » |
+| **L'interprète** | *Que vaut le résultat, et que dit-il du monde ?* | l'analyse d'erreurs, la model card, le test de robustesse | « qui rates-tu le plus, et combien ça coûte ? » |
+
+Découper par tâche donne trois exécutants dont aucun ne peut défendre une décision. Découper par
+question donne trois responsables — et c'est ce que l'oral vérifie.
+
+**Sur ce sujet, le rôle dominant est le **mesureur**** — parce que les 200 variables n'ont **pas de nom métier** : aucune connaissance du domaine ne peut remplacer la mesure. Le plancher est à **AUC 0,5639** — à peine mieux que le hasard, et c'est le protocole d'essai qui fait toute la différence.
+
+### La rotation aux trois actes
+
+Les trois actes sont **S5**, **S9** et **S13-S14**. À chaque acte, les rôles **tournent** : personne ne
+tient deux fois le même, et **le responsable du dépôt change**. Au bout des trois, chacun a porté les
+trois questions une fois.
+
+**Acte 1 (S5).** *Awa* est **mesureur** : plancher à **0,5639**, découpage stratifié. *Brice* est **constructeur** : pipeline sur 200 colonnes anonymisées. *Chloé* est **interprète** : puisque le métier est muet, elle caractérise les segments par la statistique, pas par le sens. **Awa signe.**
+
+**Acte 2 (S9).** *Brice* passe **mesureur** : il partage le travail en deux et vérifie qu'un modèle entraîné sur une moitié tient sur l'autre. *Chloé* passe **constructeur** : les trois mutations. *Awa* passe **interprète** : où l'accumulation de variables sature. **Brice signe.**
+
+**Acte 3 (S13-S14).** *Chloé* **mesureur**, *Awa* **constructeur**, *Brice* **interprète**. **Chloé signe.**
+
+**Ce que la rotation empêche.** Ici, personne ne peut dire « c'est évident, regarde la colonne ». Le seul juge est la mesure — et si un seul membre sait la produire, les deux autres ne peuvent rien affirmer.
+
+### Et si quelqu'un disparaît deux semaines ?
+
+Son rôle est **doublé** par celui qui l'a tenu à l'acte précédent — c'est précisément à cela que sert la
+rotation : au S9, chacun a déjà vu un autre rôle de l'intérieur. Le carnet de bord note la date de
+reprise, ce qui a été suspendu, et qui a signé à la place. Une équipe qui n'a pas doublé son rôle
+critique **avant** le S9 perdra du temps qu'elle ne rattrapera pas.
+
 ## Travailler : récupérer les données, coder, sauvegarder
 
 Les données du cours sont sur le **Drive du cours**, en lecture seule — **dossier du sujet :**

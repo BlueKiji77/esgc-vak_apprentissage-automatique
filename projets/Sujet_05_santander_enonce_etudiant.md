@@ -102,6 +102,44 @@ Les données de ce sujet viennent d'une **compétition publique**. Si vous voule
 journal ce que vous en avez fait, et **restez sur la même découpe** : le rendu final porte sur les
 lignes de `a_estimer.csv` / `a_decider.csv` / `horizon.csv`, pas sur la table complète.
 
+## Les trois rôles, et comment ils tournent
+
+Vous êtes trois, et le projet ne se juge pas sur des **tâches** (« les features », « le modèle », « les
+slides ») mais sur des **décisions**. Chacune a un responsable nommé, qui doit pouvoir la défendre
+**seul**, sans ses coéquipiers.
+
+| Rôle | La question qu'il porte | Ce qu'il produit | La question qu'on lui posera |
+|---|---|---|---|
+| **Le mesureur** | *Sur quoi juge-t-on ?* | le découpage, le plancher, le protocole d'essai, le tableau des essais | « pourquoi cette métrique, et pas l'exactitude ? » |
+| **Le constructeur** | *Avec quoi, et en combien de temps ?* | le chargement, les variables, le pipeline reproductible, les **trois mutations nommées** | « montre-moi la mutation qui casse le découpage » |
+| **L'interprète** | *Que vaut le résultat, et que dit-il du monde ?* | l'analyse d'erreurs, la model card, le test de robustesse | « qui rates-tu le plus, et combien ça coûte ? » |
+
+Découper par tâche donne trois exécutants dont aucun ne peut défendre une décision. Découper par
+question donne trois responsables — et c'est ce que l'oral vérifie.
+
+**Sur ce sujet, le rôle dominant est le **mesureur**** — parce que 3,96 % de mécontents : une exactitude de **96,04 %** s'obtient en ne prédisant jamais « mécontent » — et n'attrape alors **aucun** des 602 clients réellement mécontents. Seuls l'AUC et le seuil disent quelque chose.
+
+### La rotation aux trois actes
+
+Les trois actes sont **S5**, **S9** et **S13-S14**. À chaque acte, les rôles **tournent** : personne ne
+tient deux fois le même, et **le responsable du dépôt change**. Au bout des trois, chacun a porté les
+trois questions une fois.
+
+**Acte 1 (S5).** *Awa* est **mesureur** : découpage stratifié, plancher à **AUC 0,6890**. *Brice* est **constructeur** : pipeline sur 371 colonnes, dont 97 constantes à repérer. *Chloé* est **interprète** : à quoi ressemble un client mécontent. **Awa signe.**
+
+**Acte 2 (S9).** *Brice* passe **mesureur** : il démontre que l'exactitude est un piège et chiffre ce qu'un seuil bas attrape. *Chloé* passe **constructeur** : les trois mutations. *Awa* passe **interprète** : les mécontents ratés. **Brice signe.**
+
+**Acte 3 (S13-S14).** *Chloé* **mesureur**, *Awa* **constructeur**, *Brice* **interprète**. **Chloé signe.**
+
+**Ce que la rotation empêche.** Le piège classique : trois personnes optimisent l'exactitude pendant cinq semaines et découvrent au S13 que le modèle ne sert à rien. La rotation met **chacun** devant la métrique avant la fin.
+
+### Et si quelqu'un disparaît deux semaines ?
+
+Son rôle est **doublé** par celui qui l'a tenu à l'acte précédent — c'est précisément à cela que sert la
+rotation : au S9, chacun a déjà vu un autre rôle de l'intérieur. Le carnet de bord note la date de
+reprise, ce qui a été suspendu, et qui a signé à la place. Une équipe qui n'a pas doublé son rôle
+critique **avant** le S9 perdra du temps qu'elle ne rattrapera pas.
+
 ## Travailler : récupérer les données, coder, sauvegarder
 
 Les données du cours sont sur le **Drive du cours**, en lecture seule — **dossier du sujet :**

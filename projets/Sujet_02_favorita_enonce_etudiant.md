@@ -157,6 +157,44 @@ Les données de ce sujet viennent d'une **compétition publique**. Si vous voule
 journal ce que vous en avez fait, et **restez sur la même découpe** : le rendu final porte sur les
 lignes de `a_estimer.csv` / `a_decider.csv` / `horizon.csv`, pas sur la table complète.
 
+## Les trois rôles, et comment ils tournent
+
+Vous êtes trois, et le projet ne se juge pas sur des **tâches** (« les features », « le modèle », « les
+slides ») mais sur des **décisions**. Chacune a un responsable nommé, qui doit pouvoir la défendre
+**seul**, sans ses coéquipiers.
+
+| Rôle | La question qu'il porte | Ce qu'il produit | La question qu'on lui posera |
+|---|---|---|---|
+| **Le mesureur** | *Sur quoi juge-t-on ?* | le découpage, le plancher, le protocole d'essai, le tableau des essais | « pourquoi cette métrique, et pas l'exactitude ? » |
+| **Le constructeur** | *Avec quoi, et en combien de temps ?* | le chargement, les variables, le pipeline reproductible, les **trois mutations nommées** | « montre-moi la mutation qui casse le découpage » |
+| **L'interprète** | *Que vaut le résultat, et que dit-il du monde ?* | l'analyse d'erreurs, la model card, le test de robustesse | « qui rates-tu le plus, et combien ça coûte ? » |
+
+Découper par tâche donne trois exécutants dont aucun ne peut défendre une décision. Découper par
+question donne trois responsables — et c'est ce que l'oral vérifie.
+
+**Sur ce sujet, le rôle dominant est le **constructeur**** — parce que 12,2 millions de lignes, dont 5 Go à lire : le chargement et le cache décident du temps qu'il vous reste pour réfléchir. Un premier chargement qui prend quarante minutes ne laisse plus de place à l'essai.
+
+### La rotation aux trois actes
+
+Les trois actes sont **S5**, **S9** et **S13-S14**. À chaque acte, les rôles **tournent** : personne ne
+tient deux fois le même, et **le responsable du dépôt change**. Au bout des trois, chacun a porté les
+trois questions une fois.
+
+**Acte 1 (S5).** *Awa* est **mesureur** : elle coupe les 16 derniers jours et mesure le plancher, **0,7855**. *Brice* est **constructeur** : il lit par morceaux, écrit un cache Parquet et mesure le temps des deuxièmes lectures. *Chloé* est **interprète** : elle regarde les zéros et les retours (ventes négatives). **Awa signe.**
+
+**Acte 2 (S9).** *Brice* passe **mesureur** : il découvre que les couples absents de la table sont des ventes nulles, et que le plancher prédit **100 % de zéros positifs**. *Chloé* passe **constructeur** et écrit les trois mutations. *Awa* passe **interprète** : l'erreur sur les articles intermittents. **Brice signe.**
+
+**Acte 3 (S13-S14).** *Chloé* **mesureur**, *Awa* **constructeur**, *Brice* **interprète**. **Chloé signe.**
+
+**Ce que la rotation empêche.** Si le seul à savoir lire la table par morceaux est Brice, son absence au S9 arrête l'équipe deux jours. La rotation fait que **deux personnes** savent déjà le faire.
+
+### Et si quelqu'un disparaît deux semaines ?
+
+Son rôle est **doublé** par celui qui l'a tenu à l'acte précédent — c'est précisément à cela que sert la
+rotation : au S9, chacun a déjà vu un autre rôle de l'intérieur. Le carnet de bord note la date de
+reprise, ce qui a été suspendu, et qui a signé à la place. Une équipe qui n'a pas doublé son rôle
+critique **avant** le S9 perdra du temps qu'elle ne rattrapera pas.
+
 ## Travailler : récupérer les données, coder, sauvegarder
 
 Les données du cours sont sur le **Drive du cours**, en lecture seule — **dossier du sujet :**
