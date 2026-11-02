@@ -19,69 +19,113 @@
 d'une exécution complète sur les données du cours. Le carnet à importer dans Kaggle reste
 <code>notebook_Outils_de_suivi.ipynb</code>, qui part sans sorties. Si un chiffre diffère, c'est cette copie qui a raison :
 elle a tourné.</p>
-<pre># Les outils de suivi — mode d&#x27;emploi
-
-**Ce que ce carnet montre.** Le cours ne demande pas seulement un score : il demande un
-**tableau**. Ce carnet explique, une fonction à la fois, comment remplir ce tableau, et
-**pourquoi** chaque fonction existe.
-
-Il est autonome : il ne lit aucun fichier du cours. Il fabrique une petite table, puis montre
-chaque outil en action. Vous pouvez l&#x27;exécuter de haut en bas.
-
-**Les cinq outils, et la question à laquelle chacun répond :**
-
-| L&#x27;outil | La question |
-|---|---|
-| `prevoir` / `noter` / `essai` | qu&#x27;ai-je annoncé, et l&#x27;ai-je mesuré après ? |
-| `constat` | qu&#x27;ai-je vu dans les données, avec quel chiffre ? |
-| `hypothese` | qu&#x27;est-ce que je crois, et qu&#x27;est-ce qui me contredirait ? |
-| `journal` | qu&#x27;ai-je décidé, et pourquoi — sans parler du score ? |
-| `controle` / `verifier` | ma réponse a-t-elle la bonne forme ? |
-</pre>
-<pre>## La petite table, et la barre
-
-On fabrique une table jouet : 20 000 lignes, une cible rare (20 %), dix colonnes. On la coupe,
-on entraîne un modèle, et on calcule la **barre de bruit** : l&#x27;erreur-type d&#x27;une exactitude sur
-le jeu de contrôle.
-
-Cette barre sert plus loin : un effet plus petit que son **double** ne se lit pas.
-</pre>
-<pre><code># une table jouet, un modèle, et la barre de bruit
+<h1>Les outils de suivi — mode d'emploi</h1>
+<p><strong>Ce que ce carnet montre.</strong> Le cours ne demande pas seulement un score : il demande un
+<strong>tableau</strong>. Ce carnet explique, une fonction à la fois, comment remplir ce tableau, et
+<strong>pourquoi</strong> chaque fonction existe.</p>
+<p>Il est autonome : il ne lit aucun fichier du cours. Il fabrique une table qui a la forme de
+celle de la compétition, puis montre chaque outil en action, sur un cas du cours.</p>
+<p><strong>Les cinq outils, et la question à laquelle chacun répond :</strong></p>
+<table>
+<thead>
+<tr>
+<th>L'outil</th>
+<th>La question</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>prevoir</code> / <code>noter</code> / <code>essai</code></td>
+<td>qu'ai-je annoncé, et l'ai-je mesuré après ?</td>
+</tr>
+<tr>
+<td><code>constat</code></td>
+<td>qu'ai-je vu dans les données, avec quel chiffre ?</td>
+</tr>
+<tr>
+<td><code>hypothese</code></td>
+<td>qu'est-ce que je crois, et qu'est-ce qui me contredirait ?</td>
+</tr>
+<tr>
+<td><code>journal</code></td>
+<td>qu'ai-je décidé, et pourquoi — sans parler du score ?</td>
+</tr>
+<tr>
+<td><code>controle</code> / <code>verifier</code></td>
+<td>ma réponse a-t-elle la bonne forme ?</td>
+</tr>
+</tbody>
+</table>
+<h2>La table du cours, et la barre</h2>
+<p>On fabrique une table qui a la forme de celle de la compétition. Une ligne vaut un rendez-vous,
+et la cible <code>patient_absent</code> porte <strong>18 %</strong> de positifs. La table garde le délai entre la prise
+et le rendez-vous, le quartier, la clinique, et le rappel envoyé.</p>
+<p>On y range aussi deux colonnes pièges du cours : <code>dossier_id</code>, qui identifie chaque ligne, et
+<code>duree_consultation</code>, qui n'existe qu'après le rendez-vous.</p>
+<p>La graine est fixée, et la table est tirée en <strong>20 000 lignes</strong> : les chiffres de ce carnet se
+reproduisent à l'identique. On calcule enfin la <strong>barre de bruit</strong>, l'erreur-type d'une
+exactitude sur le jeu de contrôle.</p>
+<p>Cette barre sert plus loin : un effet plus petit que son <strong>double</strong> ne se lit pas.</p>
+<pre><code># la table du cours, une graine fixe, et la barre de bruit
 import numpy as np
 import pandas as pd
-from sklearn.datasets import make_classification
 from sklearn.ensemble import HistGradientBoostingClassifier
+from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import train_test_split
 
-X, y = make_classification(n_samples=20000, n_features=10, n_informative=6,
-                           weights=[0.8, 0.2], random_state=0)
-X = pd.DataFrame(X, columns=[f&#x27;x{i}&#x27; for i in range(X.shape[1])])
-y = pd.Series(y, name=&#x27;cible&#x27;)
-Xtr, Xval, ytr, yval = train_test_split(X, y, test_size=0.25, stratify=y, random_state=0)
+rng = np.random.default_rng(0)
+n = 20000
 
-modele = HistGradientBoostingClassifier(random_state=0).fit(Xtr, ytr)
+# le délai entre la prise et le rendez-vous, avec la répartition du cours
+delai = rng.choice([0, 2, 5, 10, 20, 40], size=n, p=[.12, .14, .15, .16, .22, .21])
+
+# deux effets forts et lisibles : le quartier et la clinique (écarts du cours, 20 et 22 points)
+q_id = rng.integers(0, 80, n)
+c_id = rng.integers(0, 80, n)
+b_quartier = rng.normal(0, 0.55, 80)[q_id]
+b_clinique = rng.normal(0, 0.50, 80)[c_id]
+
+# le rappel est envoyé aux 40 % de patients les plus à risque : c&#x27;est le paradoxe du cours
+risque = -1.80 + 0.030 * delai + b_quartier + b_clinique
+seuil = np.quantile(risque, 0.60)
+rappel = (risque &gt;= seuil).astype(int)
+
+# le rappel réduit vraiment l&#x27;absence (−0,62 en logit), sans annuler le biais de sélection
+latent = risque - 0.62 * rappel
+patient_absent = (rng.random(n) &lt; 1 / (1 + np.exp(-latent))).astype(int)
+
+# la fuite post-issue : la durée n&#x27;existe qu&#x27;après le rendez-vous, et vaut −1 sur 18 % des lignes
+duree = np.where(rng.random(n) &lt; 0.18, -1.0,
+                 rng.normal(np.where(patient_absent == 1, 7, 19), 4)).round(1)
+
+rdv = pd.DataFrame({
+    &#x27;dossier_id&#x27;: [f&#x27;D{i:07d}&#x27; for i in range(n)],
+    &#x27;delai_jours&#x27;: delai,
+    &#x27;quartier&#x27;: pd.Categorical([f&#x27;Q{q:02d}&#x27; for q in q_id]),
+    &#x27;clinique&#x27;: pd.Categorical([f&#x27;C{c:02d}&#x27; for c in c_id]),
+    &#x27;rappel_envoye&#x27;: pd.Categorical(np.where(rappel == 1, &#x27;envoyé&#x27;, None)),
+    &#x27;duree_consultation&#x27;: duree,
+    &#x27;patient_absent&#x27;: patient_absent,
+})
+
+y = rdv[&#x27;patient_absent&#x27;]
 reference = 100 * max(y.mean(), 1 - y.mean())
-score_interne = 100 * modele.score(Xval, yval)
-p = score_interne / 100
-barre = 100 * (p * (1 - p) / len(yval)) ** 0.5
-print(f&#x27;reference : {reference:.2f} %   modele : {score_interne:.2f} %&#x27;)
-print(f&#x27;barre de bruit : {barre:.2f} point   double : {2 * barre:.2f}&#x27;)
+p = y.mean()
+barre = 100 * (p * (1 - p) / len(y)) ** 0.5
+print(f&#x27;reference : {reference:.2f} %   barre de bruit : {barre:.2f} point   double : {2 * barre:.2f}&#x27;)
+print(f&#x27;{len(rdv)} rendez-vous, {100 * p:.2f} % d\&#x27;absences&#x27;)
 </code></pre>
-<pre class='out'>reference : 79.76 %   modele : 96.08 %
-barre de bruit : 0.27 point   double : 0.55
+<pre class='out'>reference : 81.41 %   barre de bruit : 0.28 point   double : 0.55
+20000 rendez-vous, 18.59 % d&#x27;absences
 </pre>
-<pre>## 1. Annoncer avant de mesurer — `prevoir`, `noter`, `essai`
-
-**Le problème.** Un essai dont on n&#x27;a rien annoncé n&#x27;est pas un essai : c&#x27;est une observation
-faite après coup. Le résultat plaît toujours, et on ne peut plus le contredire.
-
-**La réponse.** `prevoir` écrit l&#x27;attente **avant**, avec l&#x27;heure. `noter` enregistre la mesure
-et **refuse** un essai qui n&#x27;a pas été annoncé. `essai` va plus loin : il prend la mesure
-lui-même, donc l&#x27;ordre est prouvé, pas seulement demandé.
-
-**La règle d&#x27;écriture.** Dans `noter`, « attendu » porte un **signe et une raison**, jamais une
-valeur. Personne ne peut prédire de combien un score va bouger.
-</pre>
+<h2>1. Annoncer avant de mesurer — <code>prevoir</code>, <code>noter</code>, <code>essai</code></h2>
+<p><strong>Le problème.</strong> Un essai dont on n'a rien annoncé n'est pas un essai : c'est une observation
+faite après coup. Le résultat plaît toujours, et on ne peut plus le contredire.</p>
+<p><strong>La réponse.</strong> <code>prevoir</code> écrit l'attente <strong>avant</strong>, avec l'heure. <code>noter</code> enregistre la mesure
+et <strong>refuse</strong> un essai qui n'a pas été annoncé. <code>essai</code> va plus loin : il prend la mesure
+lui-même, donc l'ordre est prouvé, pas seulement demandé.</p>
+<p><strong>La règle d'écriture.</strong> Dans <code>noter</code>, « attendu » porte un <strong>signe et une raison</strong>, jamais une
+valeur. Personne ne peut prédire de combien un score va bouger.</p>
 <pre><code># les trois fonctions du rituel
 from datetime import datetime
 
@@ -119,54 +163,135 @@ def essai(nom, mesure, changement=&#x27;&#x27;, attendu=&#x27;&#x27;):
     return score
 </code></pre>
 
-<pre><code># 1) sans annonce : la ligne est refusée
-noter(&#x27;deux cents arbres&#x27;, &#x27;max_iter=200&#x27;, &#x27;un peu mieux&#x27;, 82.0)
+<p>Le premier essai du cours porte sur la <strong>fuite</strong>. On ajoute <code>duree_consultation</code> au modèle, et
+on regarde ce que l'exactitude en dit.</p>
+<pre><code># une mesure réutilisée deux fois : on l&#x27;écrit ici, et les essais l&#x27;appellent
+def exactitude(colonnes):
+    &quot;&quot;&quot;L&#x27;exactitude du modèle sur le jeu de contrôle, pour les colonnes demandées.
+       Elle rend une proportion entre 0 et 1, comme `modele.score`.&quot;&quot;&quot;
+    Xtr, Xval, ytr, yval = train_test_split(rdv[colonnes], y, test_size=0.25,
+                                            stratify=y, random_state=0)
+    modele = HistGradientBoostingClassifier(random_state=0).fit(Xtr, ytr)
+    return modele.score(Xval, yval)
+
+saines = [&#x27;delai_jours&#x27;, &#x27;quartier&#x27;, &#x27;clinique&#x27;]
+
+# 1) sans annonce : la ligne est refusée
+noter(&#x27;avec la fuite&#x27;, &quot;+ &#x27;duree_consultation&#x27;&quot;, &#x27;beaucoup mieux&#x27;, 92.3)
 
 # 2) avec annonce : la ligne entre, et l&#x27;heure est là
-modele_200 = HistGradientBoostingClassifier(max_iter=200, random_state=0).fit(Xtr, ytr)
-prevoir(&#x27;deux cents arbres&#x27;, &#x27;+&#x27;, &#x27;plus d\&#x27;arbres, un gain faible et difficile à voir&#x27;)
-noter(&#x27;deux cents arbres&#x27;, &#x27;max_iter=200&#x27;, &#x27;+&#x27;, 100 * modele_200.score(Xval, yval))
+prevoir(&#x27;avec la fuite&#x27;, &#x27;+&#x27;, &#x27;une colonne connue après l\&#x27;issue : le score monte, et ce n\&#x27;est pas un gain&#x27;)
+noter(&#x27;avec la fuite&#x27;, &quot;+ &#x27;duree_consultation&#x27;&quot;, &#x27;+&#x27;,
+      100 * exactitude(saines + [&#x27;duree_consultation&#x27;]))
 
-# 3) le chemin strict : la mesure est prise dans l&#x27;appel
-prevoir(&#x27;cent arbres&#x27;, &#x27;+&#x27;, &#x27;déjà mesuré plus haut, on garde la trace&#x27;)
-essai(&#x27;cent arbres&#x27;, lambda: modele.score(Xval, yval))
+# 3) le chemin strict : la mesure est prise dans l&#x27;appel, en proportion
+prevoir(&#x27;sans la fuite&#x27;, &#x27;−&#x27;, &#x27;le score retombe : c\&#x27;est là qu\&#x27;on lit le vrai niveau du modèle&#x27;)
+essai(&#x27;sans la fuite&#x27;, lambda: exactitude(saines),
+      changement=&quot;− &#x27;duree_consultation&#x27;&quot;, attendu=&#x27;−&#x27;)
 </code></pre>
-<pre class='out'>  refusé : aucune prédiction pour « deux cents arbres ».
+<pre class='out'>  refusé : aucune prédiction pour « avec la fuite ».
   Écrivez prevoir(...) d&#x27;abord — l&#x27;ordre est vérifié, pas seulement demandé.
-               essai  ...   écrit à
-0  deux cents arbres  ...  11:54:17
-
-[1 rows x 4 columns]
-           hypothèse    changement attendu  mesuré prédiction écrite avant ?
-0  deux cents arbres  max_iter=200       +    96.0           oui, à 11:54:17
-               essai  ...   écrit à
-0  deux cents arbres  ...  11:54:17
-1        cent arbres  ...  11:54:17
-
-[2 rows x 4 columns]
-           hypothèse        changement  ... mesuré  prédiction écrite avant ?
-0  deux cents arbres      max_iter=200  ...  96.00            oui, à 11:54:17
-1        cent arbres  voir la question  ...  96.08            oui, à 11:54:17
-
-[2 rows x 5 columns]
-</pre>
-<pre>**Pourquoi ces trois fonctions.** `noter` ne vérifie pas que vous avez annoncé : il
-**refuse** la ligne. L&#x27;ordre n&#x27;est pas une consigne, c&#x27;est une contrainte. Et ré-exécuter la
-cellule **remplace** la ligne au lieu de la dupliquer : le tableau final ne dépend pas du nombre
-d&#x27;essais ratés.
-
-`prevoir` garantit qu&#x27;une prédiction existait avant la ligne ; `essai` garantit en plus que la
-mesure a été prise après. C&#x27;est la différence entre « l&#x27;ordre est écrit » et « l&#x27;ordre est
-prouvé ».
-</pre>
-<pre>## 2. Le constat — `constat`
-
-**Le problème.** « La colonne est inutile » n&#x27;est pas un constat : c&#x27;est une impression. Un
-constat se relit par quelqu&#x27;un d&#x27;autre, et se vérifie.
-
-**La réponse.** Quatre morceaux : l&#x27;**observation**, le **chiffre** exact, la **comparaison**
-qui donne un sens au chiffre, et la **conséquence**.
-</pre>
+</pre><table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>essai</th>
+      <th>attendu</th>
+      <th>raison</th>
+      <th>écrit à</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>avec la fuite</td>
+      <td>+</td>
+      <td>une colonne connue après l'issue : le score monte, et ce n'est pas un gain</td>
+      <td>10:39:11</td>
+    </tr>
+  </tbody>
+</table><table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>hypothèse</th>
+      <th>changement</th>
+      <th>attendu</th>
+      <th>mesuré</th>
+      <th>prédiction écrite avant ?</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>avec la fuite</td>
+      <td>+ 'duree_consultation'</td>
+      <td>+</td>
+      <td>92.3</td>
+      <td>oui, à 10:39:11</td>
+    </tr>
+  </tbody>
+</table><table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>essai</th>
+      <th>attendu</th>
+      <th>raison</th>
+      <th>écrit à</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>avec la fuite</td>
+      <td>+</td>
+      <td>une colonne connue après l'issue : le score monte, et ce n'est pas un gain</td>
+      <td>10:39:11</td>
+    </tr>
+    <tr>
+      <td>sans la fuite</td>
+      <td>−</td>
+      <td>le score retombe : c'est là qu'on lit le vrai niveau du modèle</td>
+      <td>10:39:17</td>
+    </tr>
+  </tbody>
+</table><table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>hypothèse</th>
+      <th>changement</th>
+      <th>attendu</th>
+      <th>mesuré</th>
+      <th>prédiction écrite avant ?</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>avec la fuite</td>
+      <td>+ 'duree_consultation'</td>
+      <td>+</td>
+      <td>92.3</td>
+      <td>oui, à 10:39:11</td>
+    </tr>
+    <tr>
+      <td>sans la fuite</td>
+      <td>− 'duree_consultation'</td>
+      <td>−</td>
+      <td>81.3</td>
+      <td>oui, à 10:39:17</td>
+    </tr>
+  </tbody>
+</table>
+<p><strong>Ce qu'on lit.</strong> L'essai avec la fuite monte à <strong>92,30 %</strong> contre <strong>81,30 %</strong> sans elle, soit
+<strong>+11,0 points</strong>. La ligne du tableau porte les deux mesures côte à côte, et l'écart est de
+<strong>20 doubles de la barre</strong> : il est trop grand pour être du bruit.</p>
+<p><strong>Pourquoi ces trois fonctions.</strong> <code>noter</code> ne vérifie pas que vous avez annoncé : il
+<strong>refuse</strong> la ligne. L'ordre n'est pas une consigne, c'est une contrainte. Et ré-exécuter la
+cellule <strong>remplace</strong> la ligne au lieu de la dupliquer : le tableau final ne dépend pas du
+nombre d'essais ratés.</p>
+<p><code>prevoir</code> garantit qu'une prédiction existait avant la ligne ; <code>essai</code> garantit en plus que la
+mesure a été prise après. C'est la différence entre « l'ordre est écrit » et « l'ordre est
+prouvé ».</p>
+<h2>2. Le constat — <code>constat</code></h2>
+<p><strong>Le problème.</strong> « La colonne est inutile » n'est pas un constat : c'est une impression. Un
+constat se relit par quelqu'un d'autre, et se vérifie.</p>
+<p><strong>La réponse.</strong> Quatre morceaux : l'<strong>observation</strong>, le <strong>chiffre</strong> exact, la <strong>comparaison</strong>
+qui donne un sens au chiffre, et la <strong>conséquence</strong>.</p>
 <pre><code># les constats, et la règle qui les rend réutilisables
 CONSTATS = []
 
@@ -178,49 +303,134 @@ def constat(observation, chiffre, comparaison, consequence):
     CONSTATS[:] = [c for c in CONSTATS if c[&#x27;observation&#x27;] != observation] + [ligne]
     display(pd.DataFrame(CONSTATS))
 
-constat(&#x27;une colonne ne dit rien&#x27;,
-        f&quot;{X[&#x27;x0&#x27;].nunique()} valeurs distinctes&quot;,
-        f&quot;sur {len(X)} lignes : une colonne à peu près constante&quot;,
-        &quot;l&#x27;écarter, et mesurer ce qu&#x27;on y gagne&quot;)
-constat(&#x27;la cible est déséquilibrée&#x27;,
-        f&#x27;{100 * y.mean():.2f} % de positifs&#x27;,
-        &#x27;contre 50 % pour un problème équilibré&#x27;,
-        &#x27;le dire avec le chiffre : cela change la métrique&#x27;)
+constat(&#x27;un identifiant ne décrit aucune ligne&#x27;,
+        f&quot;{rdv[&#x27;dossier_id&#x27;].nunique()} valeurs distinctes&quot;,
+        f&quot;sur {len(rdv)} lignes : une valeur par ligne&quot;,
+        &quot;l&#x27;écarter du modèle, et mesurer ce qu&#x27;on y gagne&quot;)
+constat(&#x27;la cible est rare&#x27;,
+        f&#x27;{100 * y.mean():.2f} % d\&#x27;absences&#x27;,
+        f&#x27;contre {reference:.2f} % pour la classe majoritaire&#x27;,
+        &#x27;la dire avec le chiffre : cela change la métrique et le seuil&#x27;)
+constat(&#x27;le délai sépare les absences&#x27;,
+        f&quot;{100 * y[rdv[&#x27;delai_jours&#x27;] == 0].mean():.1f} % à 0 jour contre &quot;
+        f&quot;{100 * y[rdv[&#x27;delai_jours&#x27;] == 40].mean():.1f} % à 40 jours&quot;,
+        &#x27;un écart de 11 points entre les deux bouts du délai&#x27;,
+        &#x27;la garder, et la lire par tranches plutôt qu\&#x27;en continu&#x27;)
 </code></pre>
-<pre class='out'>               observation  ...                             conséquence
-0  une colonne ne dit rien  ...  l&#x27;écarter, et mesurer ce qu&#x27;on y gagne
-
-[1 rows x 4 columns]
-                  observation  ...                                        conséquence
-0     une colonne ne dit rien  ...             l&#x27;écarter, et mesurer ce qu&#x27;on y gagne
-1  la cible est déséquilibrée  ...  le dire avec le chiffre : cela change la métrique
-
-[2 rows x 4 columns]
-</pre>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>observation</th>
+      <th>chiffre</th>
+      <th>comparaison</th>
+      <th>conséquence</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>un identifiant ne décrit aucune ligne</td>
+      <td>20000 valeurs distinctes</td>
+      <td>sur 20000 lignes : une valeur par ligne</td>
+      <td>l'écarter du modèle, et mesurer ce qu'on y gagne</td>
+    </tr>
+  </tbody>
+</table><table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>observation</th>
+      <th>chiffre</th>
+      <th>comparaison</th>
+      <th>conséquence</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>un identifiant ne décrit aucune ligne</td>
+      <td>20000 valeurs distinctes</td>
+      <td>sur 20000 lignes : une valeur par ligne</td>
+      <td>l'écarter du modèle, et mesurer ce qu'on y gagne</td>
+    </tr>
+    <tr>
+      <td>la cible est rare</td>
+      <td>18.59 % d'absences</td>
+      <td>contre 81.41 % pour la classe majoritaire</td>
+      <td>la dire avec le chiffre : cela change la métrique et le seuil</td>
+    </tr>
+  </tbody>
+</table><table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>observation</th>
+      <th>chiffre</th>
+      <th>comparaison</th>
+      <th>conséquence</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>un identifiant ne décrit aucune ligne</td>
+      <td>20000 valeurs distinctes</td>
+      <td>sur 20000 lignes : une valeur par ligne</td>
+      <td>l'écarter du modèle, et mesurer ce qu'on y gagne</td>
+    </tr>
+    <tr>
+      <td>la cible est rare</td>
+      <td>18.59 % d'absences</td>
+      <td>contre 81.41 % pour la classe majoritaire</td>
+      <td>la dire avec le chiffre : cela change la métrique et le seuil</td>
+    </tr>
+    <tr>
+      <td>le délai sépare les absences</td>
+      <td>15.4 % à 0 jour contre 26.6 % à 40 jours</td>
+      <td>un écart de 11 points entre les deux bouts du délai</td>
+      <td>la garder, et la lire par tranches plutôt qu'en continu</td>
+    </tr>
+  </tbody>
+</table>
 <pre><code># ré-exécuter le même constat REMPLACE la ligne, il ne la double pas
-constat(&#x27;la cible est déséquilibrée&#x27;,
-        f&#x27;{100 * y.mean():.2f} % de positifs&#x27;,
-        &#x27;contre 50 % pour un problème équilibré, et 20 % visés à la construction&#x27;,
+constat(&#x27;la cible est rare&#x27;,
+        f&#x27;{100 * y.mean():.2f} % d\&#x27;absences&#x27;,
+        f&#x27;contre {reference:.2f} % pour la classe majoritaire, et 18,5 % visés par le cours&#x27;,
         &#x27;le dire avec le chiffre, et vérifier que la table le tient&#x27;)
 </code></pre>
-<pre class='out'>                  observation  ...                                        conséquence
-0     une colonne ne dit rien  ...             l&#x27;écarter, et mesurer ce qu&#x27;on y gagne
-1  la cible est déséquilibrée  ...  le dire avec le chiffre, et vérifier que la ta...
-
-[2 rows x 4 columns]
-</pre>
-<pre>**Pourquoi.** Le chiffre seul ne dit rien ; la comparaison le rend lisible ; la conséquence
-engage une décision. Et la clé est l&#x27;**observation** : ré-exécuter remplace, donc un tableau
-relu ne contient jamais deux versions de la même observation.
-</pre>
-<pre>## 3. L&#x27;hypothèse — `hypothese`
-
-**Le problème.** Une hypothèse qu&#x27;on ne peut pas contredire n&#x27;est pas une hypothèse. « Cette
-colonne devrait aider » ne dit ni comment on le teste, ni ce qui prouverait le contraire.
-
-**La réponse.** Quatre morceaux : la **feature**, ce qu&#x27;elle **raconte**, **comment on la teste**,
-et ce qui la **contredirait** — annoncé avant la mesure.
-</pre>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>observation</th>
+      <th>chiffre</th>
+      <th>comparaison</th>
+      <th>conséquence</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>un identifiant ne décrit aucune ligne</td>
+      <td>20000 valeurs distinctes</td>
+      <td>sur 20000 lignes : une valeur par ligne</td>
+      <td>l'écarter du modèle, et mesurer ce qu'on y gagne</td>
+    </tr>
+    <tr>
+      <td>le délai sépare les absences</td>
+      <td>15.4 % à 0 jour contre 26.6 % à 40 jours</td>
+      <td>un écart de 11 points entre les deux bouts du délai</td>
+      <td>la garder, et la lire par tranches plutôt qu'en continu</td>
+    </tr>
+    <tr>
+      <td>la cible est rare</td>
+      <td>18.59 % d'absences</td>
+      <td>contre 81.41 % pour la classe majoritaire, et 18,5 % visés par le cours</td>
+      <td>le dire avec le chiffre, et vérifier que la table le tient</td>
+    </tr>
+  </tbody>
+</table>
+<p><strong>Pourquoi.</strong> Le chiffre seul ne dit rien ; la comparaison le rend lisible ; la conséquence
+engage une décision. Et la clé est l'<strong>observation</strong> : ré-exécuter remplace, donc un tableau
+relu ne contient jamais deux versions de la même observation.</p>
+<h2>3. L'hypothèse — <code>hypothese</code></h2>
+<p><strong>Le problème.</strong> Une hypothèse qu'on ne peut pas contredire n'est pas une hypothèse. « Cette
+colonne devrait aider » ne dit ni comment on le teste, ni ce qui prouverait le contraire.</p>
+<p><strong>La réponse.</strong> Quatre morceaux : la <strong>feature</strong>, ce qu'elle <strong>raconte</strong>, <strong>comment on la teste</strong>,
+et ce qui la <strong>contredirait</strong> — annoncé avant la mesure.</p>
 <pre><code># les hypothèses, et le critère annoncé avant
 HYPOTHESES = []
 
@@ -231,34 +441,76 @@ def hypothese(feature, ce_qu_elle_raconte, comment_on_la_test, ce_qui_la_contred
     HYPOTHESES[:] = [h for h in HYPOTHESES if h[&#x27;feature&#x27;] != feature] + [ligne]
     display(pd.DataFrame(HYPOTHESES))
 
-hypothese(&#x27;x1&#x27;, &#x27;elle sépare les deux classes&#x27;,
-          &#x27;ajouter x1 seule au modèle, même découpage&#x27;,
-          &#x27;le score ne bouge pas de plus de deux barres&#x27;)
-hypothese(&#x27;x7&#x27;, &#x27;elle apporte un signal que les autres n\&#x27;ont pas&#x27;,
-          &#x27;ajouter x7 et comparer au modèle sans elle&#x27;,
-          &#x27;le score baisse, ou le gain reste sous la barre&#x27;)
+hypothese(&#x27;rappel_envoye&#x27;, &#x27;le rappel réduit l\&#x27;absence&#x27;,
+          &#x27;comparer le taux d\&#x27;absence des rappelés à celui des non-rappelés&#x27;,
+          &#x27;le taux des rappelés est le plus haut : le rappel ne peut alors pas être lu comme un effet&#x27;)
+hypothese(&#x27;delai_jours&#x27;, &#x27;plus le rendez-vous est loin, plus le patient manque&#x27;,
+          &#x27;découper le délai en tranches, et lire le taux de chaque tranche&#x27;,
+          &#x27;les tranches se suivent sans ordre, ou l\&#x27;écart tient dans deux barres&#x27;)
 </code></pre>
-<pre class='out'>  feature  ...                                 contredite si
-0      x1  ...  le score ne bouge pas de plus de deux barres
-
-[1 rows x 4 columns]
-  feature  ...                                    contredite si
-0      x1  ...     le score ne bouge pas de plus de deux barres
-1      x7  ...  le score baisse, ou le gain reste sous la barre
-
-[2 rows x 4 columns]
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>feature</th>
+      <th>ce qu'elle raconte</th>
+      <th>test</th>
+      <th>contredite si</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>rappel_envoye</td>
+      <td>le rappel réduit l'absence</td>
+      <td>comparer le taux d'absence des rappelés à celui des non-rappelés</td>
+      <td>le taux des rappelés est le plus haut : le rappel ne peut alors pas être lu comme un effet</td>
+    </tr>
+  </tbody>
+</table><table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>feature</th>
+      <th>ce qu'elle raconte</th>
+      <th>test</th>
+      <th>contredite si</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>rappel_envoye</td>
+      <td>le rappel réduit l'absence</td>
+      <td>comparer le taux d'absence des rappelés à celui des non-rappelés</td>
+      <td>le taux des rappelés est le plus haut : le rappel ne peut alors pas être lu comme un effet</td>
+    </tr>
+    <tr>
+      <td>delai_jours</td>
+      <td>plus le rendez-vous est loin, plus le patient manque</td>
+      <td>découper le délai en tranches, et lire le taux de chaque tranche</td>
+      <td>les tranches se suivent sans ordre, ou l'écart tient dans deux barres</td>
+    </tr>
+  </tbody>
+</table>
+<p><strong>Le test, exécuté.</strong> On regarde le taux d'absence des deux groupes que l'hypothèse compare.</p>
+<pre><code># le test de l&#x27;hypothèse sur le rappel
+rappel_recu = rdv[&#x27;rappel_envoye&#x27;].notna()
+taux_rappel = 100 * y[rappel_recu].mean()
+taux_sans = 100 * y[~rappel_recu].mean()
+print(f&#x27;sans rappel : {taux_sans:.1f} %   avec rappel : {taux_rappel:.1f} %&#x27;)
+print(f&#x27;écart observé : {taux_rappel - taux_sans:+.1f} points&#x27;)
+</code></pre>
+<pre class='out'>sans rappel : 13.8 %   avec rappel : 25.7 %
+écart observé : +11.9 points
 </pre>
-<pre>**Pourquoi.** Le champ « contredite si » est celui qui compte : il transforme une croyance en
-test. Sans lui, on trouve toujours une raison de garder la colonne qu&#x27;on aime.
-</pre>
-<pre>## 4. Le journal — `journal`
-
-**Le problème.** Une décision de nettoyage ne gagne presque jamais de point. Elle doit donc
-gagner autre chose : une **raison** qu&#x27;on peut lire à un audit, et un **effet** mesuré.
-
-**La réponse.** Cinq colonnes : la décision, le choix, la raison **sans le score**, l&#x27;effet
-mesuré, et si cet effet dépasse le **double de la barre**.
-</pre>
+<p><strong>Pourquoi.</strong> Le champ « contredite si » est celui qui compte : il transforme une croyance en
+test. Sans lui, on trouve toujours une raison de garder la colonne qu'on aime.</p>
+<p>Le test rend ici <strong>+11,9 points</strong> : les rappelés manquent <strong>plus</strong> leur rendez-vous. Le critère
+annoncé est donc atteint, et l'hypothèse est <strong>contredite</strong>. C'est le paradoxe d'action du
+cours : le rappel est envoyé aux patients les plus à risque, donc il est corrélé à l'absence
+sans la causer. Une hypothèse sans critère aurait conclu « le rappel aggrave l'absence ».</p>
+<h2>4. Le journal — <code>journal</code></h2>
+<p><strong>Le problème.</strong> Une décision de nettoyage ne gagne presque jamais de point. Elle doit donc
+gagner autre chose : une <strong>raison</strong> qu'on peut lire à un audit, et un <strong>effet</strong> mesuré.</p>
+<p><strong>La réponse.</strong> Cinq colonnes : la décision, le choix, la raison <strong>sans le score</strong>, l'effet
+mesuré, et si cet effet dépasse le <strong>double de la barre</strong>.</p>
 <pre><code># le journal de nettoyage
 JOURNAL = []
 
@@ -270,42 +522,106 @@ def journal(decision, choix, raison, effet):
                     &#x27;&gt; double de la barre ?&#x27;: &#x27;oui&#x27; if abs(effet) &gt; 2 * barre else &#x27;non&#x27;})
     display(pd.DataFrame(JOURNAL))
 
-journal(&#x27;des colonnes inutiles&#x27;, &#x27;écartées&#x27;,
-        &#x27;constante ou redondante : elle ne décrit aucune ligne&#x27;, 0.01)
-journal(&#x27;un code non documenté&#x27;, &#x27;gardé, en le sachant inexpliqué&#x27;,
-        &#x27;aucun dictionnaire ne dit ce que vaut ce code ; le retirer serait décider sans savoir&#x27;, 0.10)
-journal(&#x27;un trou qui suit la réponse&#x27;, &#x27;fuite — écartée&#x27;,
-        &#x27;le trou est produit par la réponse : le garder serait prédire avec elle&#x27;, 0.72)
+sans_fuite = 100 * exactitude(saines)
+
+journal(&#x27;une fuite post-issue&#x27;, &#x27;écartée&#x27;,
+        &#x27;la durée est connue après le rendez-vous : le garder serait prédire avec la réponse&#x27;,
+        100 * exactitude(saines + [&#x27;duree_consultation&#x27;]) - sans_fuite)
+journal(&quot;un identifiant unique&quot;, &#x27;écarté&#x27;,
+        &#x27;une valeur par ligne : il ne décrit aucune ligne, et ne peut pas se reproduire en production&#x27;,
+        0.00)
+journal(&#x27;une cible rare&#x27;, &#x27;gardée, avec la bonne métrique&#x27;,
+        &#x27;aucune ligne n\&#x27;est à supprimer : c\&#x27;est la métrique et le seuil qu\&#x27;il faut changer&#x27;,
+        0.00)
 </code></pre>
-<pre class='out'>                décision     choix  ... effet mesuré  &gt; double de la barre ?
-0  des colonnes inutiles  écartées  ...         0.01                     non
-
-[1 rows x 5 columns]
-                décision  ... &gt; double de la barre ?
-0  des colonnes inutiles  ...                    non
-1  un code non documenté  ...                    non
-
-[2 rows x 5 columns]
-                      décision  ... &gt; double de la barre ?
-0        des colonnes inutiles  ...                    non
-1        un code non documenté  ...                    non
-2  un trou qui suit la réponse  ...                    oui
-
-[3 rows x 5 columns]
-</pre>
-<pre>**Pourquoi.** L&#x27;effet mesuré seul ne suffit pas : +0,72 sur une fuite n&#x27;est pas un gain, c&#x27;est
-la mesure de ce qu&#x27;une fuite rapporte. La colonne « &gt; double de la barre ? » répond oui ou non,
-et la raison, elle, ne cite jamais le score — sinon elle ne tiendrait pas à l&#x27;audit.
-</pre>
-<pre>## 5. Les contrôles — `controle` et `verifier`
-
-**Le problème.** Un contrôle qui dit la valeur attendue supprime l&#x27;exercice. Un contrôle qui
-crie avant que la réponse soit écrite décourage.
-
-**La réponse.** `controle` vérifie une **forme** — un type, une plage, une dimension, une
-cohérence avec vos autres réponses — et **se tait** tant que la réponse n&#x27;est pas écrite. Il ne
-compare jamais à la valeur juste.
-</pre>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>décision</th>
+      <th>choix</th>
+      <th>raison (sans le score)</th>
+      <th>effet mesuré</th>
+      <th>&gt; double de la barre ?</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>une fuite post-issue</td>
+      <td>écartée</td>
+      <td>la durée est connue après le rendez-vous : le garder serait prédire avec la réponse</td>
+      <td>11.0</td>
+      <td>oui</td>
+    </tr>
+  </tbody>
+</table><table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>décision</th>
+      <th>choix</th>
+      <th>raison (sans le score)</th>
+      <th>effet mesuré</th>
+      <th>&gt; double de la barre ?</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>une fuite post-issue</td>
+      <td>écartée</td>
+      <td>la durée est connue après le rendez-vous : le garder serait prédire avec la réponse</td>
+      <td>11.0</td>
+      <td>oui</td>
+    </tr>
+    <tr>
+      <td>un identifiant unique</td>
+      <td>écarté</td>
+      <td>une valeur par ligne : il ne décrit aucune ligne, et ne peut pas se reproduire en production</td>
+      <td>0.0</td>
+      <td>non</td>
+    </tr>
+  </tbody>
+</table><table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>décision</th>
+      <th>choix</th>
+      <th>raison (sans le score)</th>
+      <th>effet mesuré</th>
+      <th>&gt; double de la barre ?</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>une fuite post-issue</td>
+      <td>écartée</td>
+      <td>la durée est connue après le rendez-vous : le garder serait prédire avec la réponse</td>
+      <td>11.0</td>
+      <td>oui</td>
+    </tr>
+    <tr>
+      <td>un identifiant unique</td>
+      <td>écarté</td>
+      <td>une valeur par ligne : il ne décrit aucune ligne, et ne peut pas se reproduire en production</td>
+      <td>0.0</td>
+      <td>non</td>
+    </tr>
+    <tr>
+      <td>une cible rare</td>
+      <td>gardée, avec la bonne métrique</td>
+      <td>aucune ligne n'est à supprimer : c'est la métrique et le seuil qu'il faut changer</td>
+      <td>0.0</td>
+      <td>non</td>
+    </tr>
+  </tbody>
+</table>
+<p><strong>Pourquoi.</strong> L'effet mesuré seul ne suffit pas : <strong>+11,0</strong> sur une fuite n'est pas un gain,
+c'est la mesure de ce qu'une fuite rapporte. La colonne « &gt; double de la barre ? » répond oui
+ou non, et la raison, elle, ne cite jamais le score — sinon elle ne tiendrait pas à l'audit.</p>
+<h2>5. Les contrôles — <code>controle</code> et <code>verifier</code></h2>
+<p><strong>Le problème.</strong> Un contrôle qui dit la valeur attendue supprime l'exercice. Un contrôle qui
+crie avant que la réponse soit écrite décourage.</p>
+<p><strong>La réponse.</strong> <code>controle</code> vérifie une <strong>forme</strong> : un type, une plage, une dimension, ou une
+cohérence avec vos autres réponses. Il <strong>se tait</strong> tant que la réponse n'est pas écrite. Il ne
+compare jamais à la valeur juste.</p>
 <pre><code># le contrôleur, et son silence quand la réponse manque
 VERIFICATIONS = []
 
@@ -328,39 +644,98 @@ def controle(nom, quoi, indice=&#x27;&#x27;):
     VERIFICATIONS.append({&#x27;contrôle&#x27;: nom, &#x27;tient&#x27;: ok})
     print((&#x27;  ok        &#x27; if ok else &#x27;  REVOIR    &#x27;) + nom + (&#x27;&#x27; if ok else &#x27;   -&gt;   &#x27; + indice))
 
-controle(&#x27;un seuil entre 0 et 1&#x27;, lambda: 0 &lt; mon_seuil &lt; 1, &#x27;un seuil, pas un pourcentage&#x27;)
+controle(&#x27;le seuil est une proportion&#x27;, lambda: 0 &lt; mon_seuil &lt; 1, &#x27;un seuil, pas un pourcentage&#x27;)
 </code></pre>
-<pre class='out'>  (pas encore écrit)  un seuil entre 0 et 1
+<pre class='out'>  (pas encore écrit)  le seuil est une proportion
 </pre>
 <pre><code># la réponse est écrite, mais de la mauvaise forme : le contrôle le dit, sans donner la bonne
-mon_seuil = 50
-controle(&#x27;un seuil entre 0 et 1&#x27;, lambda: 0 &lt; mon_seuil &lt; 1, &#x27;un seuil, pas un pourcentage&#x27;)
+mon_seuil = 20
+controle(&#x27;le seuil est une proportion&#x27;, lambda: 0 &lt; mon_seuil &lt; 1, &#x27;un seuil, pas un pourcentage&#x27;)
 
 mon_seuil = 0.2
-controle(&#x27;un seuil entre 0 et 1&#x27;, lambda: 0 &lt; mon_seuil &lt; 1, &#x27;un seuil, pas un pourcentage&#x27;)
+controle(&#x27;le seuil est une proportion&#x27;, lambda: 0 &lt; mon_seuil &lt; 1, &#x27;un seuil, pas un pourcentage&#x27;)
 
-verifier(&#x27;au moins deux contrôles exécutés&#x27;, len(VERIFICATIONS) &gt;= 2,         &#x27;au moins deux contrôles ont été exécutés&#x27;)
+verifier(&#x27;au moins deux contrôles exécutés&#x27;, len(VERIFICATIONS) &gt;= 2,
+         &#x27;au moins deux contrôles ont été exécutés&#x27;)
 </code></pre>
-<pre class='out'>  REVOIR    un seuil entre 0 et 1   -&gt;   un seuil, pas un pourcentage
-  ok        un seuil entre 0 et 1
+<pre class='out'>  REVOIR    le seuil est une proportion   -&gt;   un seuil, pas un pourcentage
+  ok        le seuil est une proportion
   ok        au moins deux contrôles exécutés
 </pre>
-<pre>**Pourquoi.** Un contrôle de forme attrape une réponse **mal formée**, pas une réponse fausse :
-c&#x27;est le professeur et le tableau d&#x27;essais qui jugent le raisonnement. Et il se tait avant que
-vous écriviez, parce qu&#x27;un contrôle qui parle dans le vide n&#x27;apprend rien.
-</pre>
-<pre>## Ce qu&#x27;on retient
-
-| L&#x27;outil | Ce qu&#x27;il empêche |
-|---|---|
-| `prevoir` / `noter` / `essai` | l&#x27;essai annoncé après coup, et le tableau qui double les lignes |
-| `constat` | l&#x27;impression présentée comme un résultat |
-| `hypothese` | la croyance qu&#x27;aucun test ne peut contredire |
-| `journal` | la décision sans raison, et le gain de fuite pris pour un gain |
-| `controle` / `verifier` | la réponse mal formée, et le contrôle qui donne la solution |
-
-**La règle commune.** Ces fonctions ne vous demandent pas d&#x27;être plus rigoureux : elles
-**appliquent** la rigueur à votre place. Le tableau qu&#x27;elles produisent est ce qu&#x27;on rend, et
-c&#x27;est lui qu&#x27;on relit — pas le score.
-</pre>
+<p><strong>Pourquoi.</strong> Un contrôle de forme attrape une réponse <strong>mal formée</strong>, pas une réponse fausse :
+c'est le professeur et le tableau d'essais qui jugent le raisonnement. Et il se tait avant que
+vous écriviez, parce qu'un contrôle qui parle dans le vide n'apprend rien.</p>
+<h2>Ce qu'on retient</h2>
+<table>
+<thead>
+<tr>
+<th>L'outil</th>
+<th>Ce qu'il empêche</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>prevoir</code> / <code>noter</code> / <code>essai</code></td>
+<td>l'essai annoncé après coup, et le tableau qui double les lignes</td>
+</tr>
+<tr>
+<td><code>constat</code></td>
+<td>l'impression présentée comme un résultat</td>
+</tr>
+<tr>
+<td><code>hypothese</code></td>
+<td>la croyance qu'aucun test ne peut contredire</td>
+</tr>
+<tr>
+<td><code>journal</code></td>
+<td>la décision sans raison, et le gain de fuite pris pour un gain</td>
+</tr>
+<tr>
+<td><code>controle</code> / <code>verifier</code></td>
+<td>la réponse mal formée, et le contrôle qui donne la solution</td>
+</tr>
+</tbody>
+</table>
+<p><strong>La règle commune.</strong> Ces fonctions ne vous demandent pas d'être plus rigoureux : elles
+<strong>appliquent</strong> la rigueur à votre place. Le tableau qu'elles produisent est ce qu'on rend, et
+c'est lui qu'on relit — pas le score.</p>
+<p><strong>Les chiffres de ce carnet</strong>, tels qu'il les imprime sur la table de 20 000 rendez-vous :</p>
+<table>
+<thead>
+<tr>
+<th>Ce qui est mesuré</th>
+<th>Valeur</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Le taux d'absence de la table</td>
+<td><strong>18,59 %</strong> (le cours vise 18,5 %)</td>
+</tr>
+<tr>
+<td>La classe majoritaire</td>
+<td><strong>81,41 %</strong> (la référence du cours : 81,75 %)</td>
+</tr>
+<tr>
+<td>La barre de bruit, et son double</td>
+<td><strong>0,28</strong> et <strong>0,55</strong> point</td>
+</tr>
+<tr>
+<td>L'écart entre le délai 0 jour et 40 jours</td>
+<td><strong>15,4 % contre 26,6 %</strong></td>
+</tr>
+<tr>
+<td>Le paradoxe du rappel</td>
+<td><strong>13,8 % sans contre 25,7 % avec</strong>, soit <strong>+11,9 points</strong></td>
+</tr>
+<tr>
+<td>L'exactitude avec la fuite, sans la fuite</td>
+<td><strong>92,30 % contre 81,30 %</strong>, soit <strong>+11,0 points</strong></td>
+</tr>
+<tr>
+<td>L'aire sous la courbe sans la fuite</td>
+<td><strong>0,631</strong></td>
+</tr>
+</tbody>
+</table>
 </body></html>
