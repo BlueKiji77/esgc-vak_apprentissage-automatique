@@ -1,0 +1,848 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8">
+<title>notebook_J5 — exécuté</title>
+<style>
+ body{max-width:52rem;margin:2rem auto;padding:0 1rem;line-height:1.55;
+       font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#1b1b1b}
+ h1,h2,h3,h4{line-height:1.25}
+ table{border-collapse:collapse;margin:1rem 0;font-size:.92em}
+ td,th{border:1px solid #ccc;padding:.25rem .5rem;text-align:left}
+ th{background:#f2f2f2}
+ pre{background:#f6f8fa;padding:.7rem .9rem;overflow-x:auto;border-radius:4px;font-size:.88em}
+ pre.out{background:#fff;border-left:3px solid #4a7c9b}
+ code{font-family:ui-monospace,Consolas,monospace}
+ blockquote{margin:1rem 0;padding:.4rem 1rem;border-left:3px solid #b5651d;background:#fdf7f2}
+ .note{background:#eef4f9;border:1px solid #c8d8e4;padding:.7rem 1rem;border-radius:4px}
+</style></head><body>
+<h1>notebook_J5</h1>
+<p class="note">Copie <strong>exécutée</strong> du carnet, pour la relecture : les sorties sont celles
+d'une exécution complète sur les données du cours. Le carnet à importer dans Kaggle reste
+<code>notebook_J5.ipynb</code>, qui part sans sorties. Si un chiffre diffère, c'est cette copie qui a raison :
+elle a tourné.</p>
+<pre>J5 — Valider sans se mentir
+
+**Séance 5.** Un score n’existe pas tout seul : il existe sous un découpage nommé. Changer le
+découpage change le score sans changer le modèle. Aujourd’hui, on apprend à choisir le découpage
+avant de mesurer, et à reconnaître les trois façons de se mentir.
+
+&gt; **La règle de la séance :** le découpage se **décide**, il ne se subit pas. Un découpage qui
+&gt; place le même patient des deux côtés rend un chiffre qui ne veut rien dire — et il ne prévient
+&gt; pas.
+
+**Ce que la séance produit :** trois découpages du même modèle, mesurés côte à côte. La fuite de
+prétraitement, introduite puis réparée. Le tableau des plis. Et les deux périodes de la table.
+
+**Les trois façons de se mentir, que la séance démonte :** placer le même patient des deux côtés.
+Apprendre une statistique avant le découpage. Mélanger le passé et l’avenir.
+
+**Où elle s’arrête, et c’est la frontière avec la séance 6 :** ici on **valide**. On apprend à ne
+pas se mentir sur un score. La séance 6 **prévoit** : elle produira une prévision et la jugera
+contre un naïf.
+
+**La mise en place n’est pas reconstruite ici** : elle est **extraite** de `notebook_J1.ipynb` et
+de `notebook_J3.ipynb`, qui restent les sources uniques.
+</pre>
+<pre>## Mise en place (fournie)
+
+Ces cellules sont **extraites** des carnets précédents. Exécutez-les de haut en bas, sans rien y
+modifier. Elles apportent les données, la table de travail, la référence, le découpage, le modèle
+et la **barre de bruit** posée en séance 3.
+
+Les `random_state=0` que vous verrez sont la **graine du tirage au sort** (expliquée en J1 §5).
+Le même nombre redonne le même découpage, donc la même mesure.
+</pre>
+<pre>### Les outils
+</pre>
+<pre><code># les outils
+# Aucun import en bloc au début : chaque module entre dans le carnet au moment de son premier
+# usage. On voit ainsi à quoi il sert, au lieu de le deviner dans une liste.
+
+# `display` : un tableau s&#x27;affiche proprement dans un carnet, et reste lisible ailleurs.
+# C&#x27;est par `display` qu&#x27;on montre TOUTES les tables de ce carnet — jamais un print de texte.
+try:
+    from IPython.display import display
+except ImportError:
+    def display(x):
+        print(x)
+</code></pre>
+
+<pre>### Les données
+</pre>
+<pre><code>import os
+import pandas as pd
+# où sont les fichiers — on CHERCHE `train.csv`, on ne suppose pas un chemin
+# (Kaggle a déjà déplacé ses points de montage : un chemin recopié se périme, une recherche non)
+def _trouver_dossier(racines):
+    &quot;&quot;&quot;Première racine contenant train.csv — en surface, puis en profondeur.&quot;&quot;&quot;
+    for racine in racines:
+        if not os.path.isdir(racine):
+            continue
+        if os.path.exists(os.path.join(racine, &quot;train.csv&quot;)):
+            return racine
+        for chemin, _, fichiers in os.walk(racine):
+            if &quot;train.csv&quot; in fichiers:
+                return chemin
+    return None
+
+DOSSIER = _trouver_dossier([&quot;/kaggle/input&quot;, &quot;sortie&quot;])
+assert DOSSIER, &quot;train.csv introuvable : les données de la compétition sont-elles montées ?&quot;
+
+print(&quot;le dossier des données trouvé :&quot;, DOSSIER)
+</code></pre>
+<pre class='out'>le dossier des données trouvé : sortie
+</pre>
+<pre><code>train = pd.read_csv(os.path.join(DOSSIER, &quot;train.csv&quot;), low_memory=False)
+test = pd.read_csv(os.path.join(DOSSIER, &quot;test.csv&quot;), low_memory=False)
+
+ID, CIBLE = &quot;ligne_id&quot;, &quot;patient_absent&quot;
+
+print(&quot;les deux tableaux \n&quot;)
+print(&quot;train :&quot;, train.shape, &quot;(lignes, colonnes)&quot;)
+print(&quot;test  :&quot;, test.shape, &quot;(lignes, colonnes)&quot;)
+
+print(&quot;les cinq premières lignes \n&quot;)
+display(train.head())
+</code></pre>
+<pre class='out'>les deux tableaux 
+
+train : (149894, 39) (lignes, colonnes)
+test  : (63721, 38) (lignes, colonnes)
+les cinq premières lignes 
+
+    dossier_id  ligne_id  ... taux_absence_passe patient_absent
+0  DOS-0127912    127913  ...                0.0              1
+1  DOS-0002883      2884  ...                0.0              0
+2  DOS-0098561     98562  ...                0.0              0
+3  DOS-0133156    133157  ...                0.0              0
+4  DOS-0055744     55745  ...                0.0              0
+
+[5 rows x 39 columns]
+</pre>
+<pre>### La table de travail
+</pre>
+<pre><code>A_ECARTER = [ID, &quot;dossier_id&quot;, &quot;patient_id&quot;, &quot;duree_consultation&quot;, &quot;constantes_relevees&quot;,
+             &quot;motif_absence&quot;, &quot;date_prise&quot;, &quot;date_rdv&quot;, &quot;taille_cm&quot;, &quot;date_naissance&quot;,
+             &quot;canal_prise&quot;]
+
+def matrice(cols):
+    &quot;&quot;&quot;La table de travail : colonnes écartées retirées, catégorielles déclarées.&quot;&quot;&quot;
+    X = cols.drop(columns=[c for c in A_ECARTER + [CIBLE] if c in cols.columns]).copy()
+    cat = [c for c in X.columns if not pd.api.types.is_numeric_dtype(X[c])]
+    trop_fin = [c for c in cat if X[c].nunique() &gt; 255]
+    X = X.drop(columns=trop_fin)
+    cat = [c for c in cat if c not in trop_fin]
+    for c in cat:
+        X[c] = X[c].fillna(&quot;&quot;).astype(&quot;category&quot;)
+    return X, cat, trop_fin
+
+X, CAT, TROP_FIN = matrice(train)
+Xt, _, _ = matrice(test)
+
+for c in CAT:
+    Xt[c] = Xt[c].cat.set_categories(X[c].cat.categories)
+
+print(&quot;la table de travail \n&quot;)
+print(&quot;colonnes conservées :&quot;, X.shape[1])
+print(&quot;colonnes écartées (cardinalité trop forte) :&quot;, TROP_FIN)
+print(&quot;colonnes catégorielles :&quot;, CAT)
+</code></pre>
+<pre class='out'>la table de travail 
+
+colonnes conservées : 26
+colonnes écartées (cardinalité trop forte) : [&#x27;tournee_jour&#x27;]
+colonnes catégorielles : [&#x27;clinique&#x27;, &#x27;district&#x27;, &#x27;sexe&#x27;, &#x27;quartier&#x27;, &#x27;assurance&#x27;, &#x27;rappel_envoye&#x27;, &#x27;zone_clinique&#x27;]
+</pre>
+<pre>### La cible, et la référence
+</pre>
+<pre><code>print(&quot;la distribution de la cible \n&quot;)
+repartition = pd.DataFrame({&quot;lignes&quot;: [len(train), int(train[CIBLE].sum())],
+                            &quot;part (%)&quot;: [100.0, round(100 * train[CIBLE].mean(), 2)]},
+                           index=[&quot;toutes&quot;, &quot;absents&quot;])
+display(repartition)
+
+reference = 100 * max(train[CIBLE].mean(), 1 - train[CIBLE].mean())
+print(f&quot;la référence (répondre toujours la classe majoritaire) : {reference:.2f} %&quot;)
+</code></pre>
+<pre class='out'>la distribution de la cible 
+
+         lignes  part (%)
+toutes   149894    100.00
+absents   27357     18.25
+la référence (répondre toujours la classe majoritaire) : 81.75 %
+</pre>
+<pre><code># `y` entre ici ; la référence a déjà été calculée avec la distribution ci-dessus —
+y = train[CIBLE]
+</code></pre>
+
+<pre>### Le découpage, le modèle, et les baselines
+</pre>
+<pre><code># les baselines, sur le même jeu de validation — et la barre qui décide
+from sklearn.ensemble import HistGradientBoostingClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import train_test_split
+
+Xtr, Xval, ytr, yval = train_test_split(X, y, test_size=0.2, stratify=y, random_state=0)
+
+# 1) la réponse constante : le concurrent le plus bête, et le plus dur à battre
+constante = 100 * max(yval.mean(), 1 - yval.mean())
+
+# 2) la règle du délai : « j&#x27;annonce une absence si le délai dépasse N jours ».
+#    N se choisit sur les lignes d&#x27;apprentissage, pas sur celles de contrôle.
+delai_max = int(Xtr[&#x27;delai_jours&#x27;].max())
+taux_par_seuil = {s: float(((Xtr[&#x27;delai_jours&#x27;] &gt; s).astype(int) == ytr).mean())
+                  for s in (0, 1, 3, 7, 14, 30) if s &lt; delai_max}
+seuil_appris = max(taux_par_seuil, key=taux_par_seuil.get)
+regle = (Xval[&#x27;delai_jours&#x27;] &gt; seuil_appris).astype(int)
+
+# et la règle qui ne dirait jamais rien ? c&#x27;est la réponse constante, au point près
+silence = (Xval[&#x27;delai_jours&#x27;] &gt; delai_max).astype(int)
+
+# 3) la famille linéaire : elle a besoin de nombres, on lui en prépare — la recette des
+#    séances précédentes (newton-cholesky : le solveur qui converge sur cette table)
+X_n = pd.get_dummies(X, columns=CAT).fillna(0)   # 0 = trou comblé ; le linéaire ne lit pas les NaN
+Xtr_n, Xval_n = X_n.loc[Xtr.index], X_n.loc[Xval.index]
+lineaire = LogisticRegression(solver=&#x27;newton-cholesky&#x27;).fit(Xtr_n, ytr)
+
+# 4) le modèle du cours, celui des séances précédentes
+modele = HistGradientBoostingClassifier(random_state=0).fit(Xtr, ytr)
+
+# la barre : l&#x27;erreur-type de l&#x27;exactitude sur CE jeu de validation
+barre = 100 * ((constante / 100) * (1 - constante / 100) / len(yval)) ** 0.5
+
+baselines = pd.DataFrame([
+    {&#x27;baseline&#x27;: &#x27;toujours présent&#x27;,
+     &#x27;exactitude (%)&#x27;: round(constante, 2)},
+    {&#x27;baseline&#x27;: f&#x27;règle du délai — absent si le délai dépasse {seuil_appris} j&#x27;,
+     &#x27;exactitude (%)&#x27;: round(100 * (regle == yval).mean(), 2)},
+    {&#x27;baseline&#x27;: &#x27;absent si ce patient a déjà manqué un rendez-vous&#x27;,
+     &#x27;exactitude (%)&#x27;: round(100 * ((Xval[&#x27;taux_absence_passe&#x27;] &gt; 0).astype(int) == yval).mean(), 2)},
+    {&#x27;baseline&#x27;: &#x27;la famille linéaire&#x27;,
+     &#x27;exactitude (%)&#x27;: round(100 * lineaire.score(Xval_n, yval), 2)},
+    {&#x27;baseline&#x27;: &#x27;le modèle du cours&#x27;,
+     &#x27;exactitude (%)&#x27;: round(100 * modele.score(Xval, yval), 2)},
+])
+display(baselines)
+
+ecart = 100 * modele.score(Xval, yval) - constante
+print(f&#x27;→ le modèle dépasse la réponse constante de {ecart:+.2f} point,&#x27;)
+print(f&#x27;  soit {ecart / barre:.1f} erreurs-types de ce jeu de validation ({barre:.2f} point).&#x27;)
+print(f&#x27;  la règle du délai, elle, fait {100 * (regle == yval).mean():.2f} % : elle alerte sur&#x27;)
+print(f&#x27;  {int(regle.sum())} lignes et perd contre la réponse constante.&#x27;)
+print(f&#x27;  et la règle qui ne dirait jamais rien ferait {100 * (silence == yval).mean():.2f} % —&#x27;)
+print(&#x27;  exactement la réponse constante. Une règle en place se mesure avant d’être opposée&#x27;)
+print(&#x27;  à un modèle ; ce que cela dit d’une exactitude reste ouvert.&#x27;)
+</code></pre>
+<pre class='out'>                                            baseline  exactitude (%)
+0                                   toujours présent           81.75
+1   règle du délai — absent si le délai dépasse 30 j           79.92
+2  absent si ce patient a déjà manqué un rendez-vous           78.65
+3                                la famille linéaire           82.21
+4                                 le modèle du cours           82.51
+→ le modèle dépasse la réponse constante de +0.76 point,
+  soit 3.4 erreurs-types de ce jeu de validation (0.22 point).
+  la règle du délai, elle, fait 79.92 % : elle alerte sur
+  1572 lignes et perd contre la réponse constante.
+  et la règle qui ne dirait jamais rien ferait 81.75 % —
+  exactement la réponse constante. Une règle en place se mesure avant d’être opposée
+  à un modèle ; ce que cela dit d’une exactitude reste ouvert.
+</pre>
+<pre>### Le rituel : annoncer avant de mesurer
+</pre>
+<pre><code># l&#x27;horloge entre ici : c&#x27;est elle qui rend une prédiction vérifiable
+from datetime import datetime
+
+ESSAIS = []
+PREDICTIONS = []
+
+def prevoir(essai, attendu, raison):
+    &quot;&quot;&quot;Écrit ce que vous attendez AVANT de mesurer — horodaté.
+       `noter(...)` refuse ensuite tout essai sans prédiction : l&#x27;ordre n&#x27;est pas demandé, il est
+       appliqué. Ce que cette fonction garantit, exactement : une prédiction EXISTAIT avant que la
+       ligne du tableau soit écrite. Elle ne date pas la mesure — le score lui arrive déjà calculé.
+       Pour la garantie complète, mesurez dans `essai(...)`, qui date la mesure lui-même.&quot;&quot;&quot;
+    PREDICTIONS[:] = [p for p in PREDICTIONS if p[&quot;essai&quot;] != essai]
+    PREDICTIONS.append({&quot;essai&quot;: essai, &quot;attendu&quot;: attendu, &quot;raison&quot;: raison,
+                        &quot;écrit à&quot;: datetime.now().strftime(&quot;%H:%M:%S&quot;)})
+    display(pd.DataFrame(PREDICTIONS))
+
+def essai(nom, mesure, changement=&quot;&quot;, attendu=&quot;&quot;):
+    &quot;&quot;&quot;Le chemin STRICT : la mesure est prise ICI, donc l&#x27;ordre (prédiction puis mesure) est prouvé.
+       `mesure` est une fonction sans argument qui rend le score, par exemple
+       `lambda: modele.score(Xval, yval)`. Refuse de mesurer sans prédiction.&quot;&quot;&quot;
+    prevu = [p for p in PREDICTIONS if p[&quot;essai&quot;] == nom]
+    if not prevu:
+        print(f&quot;refusé : aucune prédiction pour « {nom} ». Écrivez prevoir(...) d&#x27;abord.&quot;)
+        return None
+    score = 100 * mesure()
+    noter(nom, changement or &quot;voir la question&quot;, attendu or prevu[0][&quot;attendu&quot;], score)
+    return score
+
+def noter(hypothese, changement, attendu, score):
+    &quot;&quot;&quot;Ajoute une ligne au tableau. `attendu` : un signe et une raison, jamais une valeur.
+       Ré-exécuter une cellule REMPLACE la ligne de même `hypothèse` : elle ne la double pas.
+
+       REFUSE d&#x27;enregistrer un essai non annoncé — c&#x27;est la règle du cours, appliquée.
+       Ce qu&#x27;elle garantit, et rien de plus : une prédiction existait AVANT que cette ligne soit
+       écrite. Elle ne date pas la mesure — d&#x27;où `essai(...)` pour la garantie complète.&quot;&quot;&quot;
+    prevu = [p for p in PREDICTIONS if p[&quot;essai&quot;] == hypothese]
+    if not prevu:
+        print(f&quot;  refusé : aucune prédiction pour « {hypothese} ».&quot;)
+        print(&quot;  Écrivez prevoir(...) d&#x27;abord — l&#x27;ordre est vérifié, pas seulement demandé.&quot;)
+        return
+    ligne = {&quot;hypothèse&quot;: hypothese, &quot;changement&quot;: changement,
+             &quot;attendu&quot;: attendu, &quot;mesuré&quot;: round(score, 2),
+             &quot;prédiction écrite avant ?&quot;: &quot;oui, à &quot; + prevu[0][&quot;écrit à&quot;]}
+    ESSAIS[:] = [e for e in ESSAIS if e[&quot;hypothèse&quot;] != hypothese] + [ligne]
+    display(pd.DataFrame(ESSAIS))
+</code></pre>
+
+<pre>## 1. Le découpage qui ment
+
+Un patient revient. Sur cette table, **32,63 % des patients ont plus d’un rendez-vous**, et ces
+patients portent **55,11 % des lignes**. Le plus assidu en a **161**. Le modèle, lui, ne voit
+jamais l’identifiant du patient : la colonne est écartée de la table de travail.
+
+Il n’a donc pas besoin de l’identifiant pour reconnaître un patient. Il lui suffit de retrouver,
+dans le jeu de contrôle, des lignes qui ressemblent à celles qu’il a déjà apprises. Un découpage
+au hasard place **le même patient des deux côtés**. Le score se calcule alors sur des lignes
+déjà vues — et aucun nouveau patient ne sera jamais dans ce cas.
+
+Ce qu’on regarde : le même modèle, trois découpages, et le nombre de patients présents des deux
+côtés. L’écart de score est la mesure ; le nombre de patients partagés est le mécanisme.
+
+Ce que cette section **ne tranche pas** : le découpage de votre sujet. Il dépend de la structure de
+vos données, et il se décide avant de mesurer.
+</pre>
+<pre><code># les trois découpages, sur la même table — le même patient peut se trouver des deux côtés
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.model_selection import GroupKFold, train_test_split
+
+pos = np.arange(len(X))
+al_app, al_cont = train_test_split(pos, test_size=0.2, random_state=0)
+st_app, st_cont = train_test_split(pos, test_size=0.2, stratify=y, random_state=0)
+gp_app, gp_cont = next(iter(GroupKFold(n_splits=5).split(X, y, groups=train[&#x27;patient_id&#x27;])))
+
+fig, ax = plt.subplots(figsize=(9, 3))
+for k, (nom, app, cont) in enumerate([(&#x27;au hasard&#x27;, al_app, al_cont),
+                                      (&#x27;stratifié&#x27;, st_app, st_cont),
+                                      (&#x27;par patient&#x27;, gp_app, gp_cont)]):
+    ax.scatter(app, [k] * len(app), s=1, color=&#x27;#b9b9b9&#x27;)
+    ax.scatter(cont, [k] * len(cont), s=1.5, color=&#x27;#c0392b&#x27;)
+ax.set_yticks([0, 1, 2])
+ax.set_yticklabels([&#x27;au hasard&#x27;, &#x27;stratifié&#x27;, &#x27;par patient&#x27;])
+ax.set_xlabel(&#x27;les 149 894 lignes, dans l’ordre de la table&#x27;)
+ax.set_title(&#x27;gris : apprentissage · rouge : contrôle&#x27;)
+plt.show()
+
+partages = len(set(train[&#x27;patient_id&#x27;].iloc[al_app]).intersection(train[&#x27;patient_id&#x27;].iloc[al_cont]))
+print(f&#x27;patients présents des deux côtés, au hasard : {partages} sur {len(al_cont)} lignes de contrôle&#x27;)
+</code></pre>
+<pre class='out'>&lt;cellule 9&gt;:21: UserWarning: FigureCanvasAgg is non-interactive, and thus cannot be shown
+patients présents des deux côtés, au hasard : 11972 sur 29979 lignes de contrôle
+</pre>
+<pre><code># le même modèle, trois découpages — et l&#x27;écart que personne ne regarde
+from sklearn.ensemble import HistGradientBoostingClassifier
+
+def score_du_decoupage(app, cont):
+    &quot;&quot;&quot;Le modèle du cours, entraîné sur un côté et jugé sur l&#x27;autre.&quot;&quot;&quot;
+    m = HistGradientBoostingClassifier(random_state=0).fit(X.iloc[app], y.iloc[app])
+    return 100 * m.score(X.iloc[cont], y.iloc[cont])
+
+prevoir(&#x27;un découpage par patient&#x27;, &#x27;le score baisse&#x27;,
+        &#x27;les lignes de contrôle ne ressemblent plus à des lignes déjà apprises&#x27;)
+scores = {&#x27;au hasard&#x27;: score_du_decoupage(al_app, al_cont),
+          &#x27;stratifié (le découpage du cours)&#x27;: score_du_decoupage(st_app, st_cont),
+          &#x27;par patient&#x27;: score_du_decoupage(gp_app, gp_cont)}
+noter(&#x27;un découpage par patient&#x27;, &#x27;GroupKFold sur patient_id&#x27;,
+      &#x27;les lignes de contrôle ne ressemblent plus à des lignes déjà apprises&#x27;,
+      scores[&#x27;par patient&#x27;])
+
+display(pd.DataFrame({&#x27;découpage&#x27;: list(scores), &#x27;exactitude (%)&#x27;: [round(v, 2) for v in scores.values()]}))
+ecart = scores[&#x27;stratifié (le découpage du cours)&#x27;] - scores[&#x27;par patient&#x27;]
+print(f&#x27;→ l’écart entre le découpage du cours et le découpage par patient : {ecart:+.2f} point.&#x27;)
+print(f&#x27;  la barre de bruit vaut {barre:.2f} : cet écart-là ne se lit pas comme un gain.&#x27;)
+print(f&#x27;  et {100 * partages / len(al_cont):.1f} % des lignes de contrôle portaient un patient&#x27;)
+print(&#x27;  déjà vu à l’apprentissage. Le score ne le dit pas — le découpage, si.&#x27;)
+</code></pre>
+<pre class='out'>                      essai  ...   écrit à
+0  un découpage par patient  ...  10:33:52
+
+[1 rows x 4 columns]
+                  hypothèse  ... prédiction écrite avant ?
+0  un découpage par patient  ...           oui, à 10:33:52
+
+[1 rows x 5 columns]
+                           découpage  exactitude (%)
+0                          au hasard           82.51
+1  stratifié (le découpage du cours)           82.51
+2                        par patient           82.41
+→ l’écart entre le découpage du cours et le découpage par patient : +0.09 point.
+  la barre de bruit vaut 0.22 : cet écart-là ne se lit pas comme un gain.
+  et 39.9 % des lignes de contrôle portaient un patient
+  déjà vu à l’apprentissage. Le score ne le dit pas — le découpage, si.
+</pre>
+<pre>&gt; **Question →** `Devoir_maison_3.ipynb`, **question 1 (carnet J5)** — l’écart entre les trois
+&gt; découpages sur vos données, et lequel ment.
+</pre>
+<pre>**Une chose que la mesure montre, et qui surprend :** l’écart de score est **petit**. Ici, il vaut
+**0,09 point**, moins que la barre de bruit. Un découpage au hasard ne gonfle donc pas le score de
+dix points : il le gonfle d’un rien, et c’est plus grave. Un chiffre franchement faux se repère ; un
+chiffre faux d’un dixième de point se garde, se publie, et se paie en production.
+</pre>
+<pre>### La démonstration, découpage par découpage
+
+Une même paire de courbes — le score d’**apprentissage** et le score de **contrôle** — sous les
+trois découpages. C’est le geste des séances 3 et 4, appliqué ici au découpage lui-même.
+
+**La barre de bruit, écrite deux fois.** En symboles : $\sqrt{p(1-p)/n}$, et la barre vaut **deux**
+fois cet écart-type, soit environ 95 % des tirages. En mots : l’erreur-type d’une exactitude sur
+$n$ lignes de contrôle vaut **0,22 point** sur 29 979 lignes, **1,22 point** sur 1 000.
+
+Ce qu’on regarde : les deux courbes, dans les trois découpages.
+</pre>
+<pre><code># la même paire de courbes sous les trois découpages : l&#x27;apprentissage, et le contrôle
+from sklearn.ensemble import HistGradientBoostingClassifier
+import matplotlib.pyplot as plt
+
+plan = [(&#x27;au hasard&#x27;, al_app, al_cont), (&#x27;stratifié&#x27;, st_app, st_cont), (&#x27;par patient&#x27;, gp_app, gp_cont)]
+fig, (gauche, droite) = plt.subplots(1, 2, figsize=(11, 3.6), sharey=True)
+for nom, app_i, cont_i in plan:
+    apprentissage, controle = [], []
+    for arbres in (5, 10, 20, 30):
+        m = HistGradientBoostingClassifier(max_iter=arbres, early_stopping=False, random_state=0).fit(X.iloc[app_i], y.iloc[app_i])
+        apprentissage.append(100 * m.score(X.iloc[app_i], y.iloc[app_i]))
+        controle.append(100 * m.score(X.iloc[cont_i], y.iloc[cont_i]))
+    gauche.plot((5, 10, 20, 30), apprentissage, marker=&#x27;o&#x27;, label=nom)
+    droite.plot((5, 10, 20, 30), controle, marker=&#x27;o&#x27;, label=nom)
+    print(f&#x27;  {nom:&lt;12} apprentissage {apprentissage[-1]:5.2f} % | contrôle {controle[-1]:5.2f} % (maximum {max(controle):5.2f} %)&#x27;)
+gauche.set_title(&#x27;le score d’apprentissage&#x27;); gauche.set_xlabel(&#x27;arbres&#x27;); gauche.set_ylabel(&#x27;exactitude (%)&#x27;)
+droite.set_title(&#x27;le score de contrôle&#x27;); droite.set_xlabel(&#x27;arbres&#x27;); droite.legend(fontsize=8)
+plt.show()
+print(&#x27;→ l’apprentissage monte pareil dans les trois cas : il ne dit rien du découpage.&#x27;)
+print(&#x27;  Le contrôle, lui, plafonne plus bas et plus tôt sous le découpage par patient —&#x27;)
+print(&#x27;  et c’est la seule des deux courbes qui parle du monde réel.&#x27;)
+</code></pre>
+<pre class='out'>  au hasard    apprentissage 82.83 % | contrôle 82.56 % (maximum 82.56 %)
+  stratifié    apprentissage 82.84 % | contrôle 82.50 % (maximum 82.52 %)
+  par patient  apprentissage 82.87 % | contrôle 82.39 % (maximum 82.39 %)
+&lt;cellule 11&gt;:18: UserWarning: FigureCanvasAgg is non-interactive, and thus cannot be shown
+→ l’apprentissage monte pareil dans les trois cas : il ne dit rien du découpage.
+  Le contrôle, lui, plafonne plus bas et plus tôt sous le découpage par patient —
+  et c’est la seule des deux courbes qui parle du monde réel.
+</pre>
+<pre>## 2. La fuite de prétraitement
+
+La séance 2 a montré les colonnes qui portent la réponse : la durée de la consultation, le motif
+d’absence. Les écarter a suffi. Il reste une fuite qui n’a l’air de rien, parce qu’elle ne touche
+à aucune colonne : elle tient à **l’ordre des opérations**.
+
+Un prétraitement apprend toujours quelque chose de la table. Une moyenne, une liste de catégories,
+un taux. Si cet apprentissage est fait **avant** le découpage, il a vu les lignes de contrôle. Le
+modèle reçoit alors un renseignement qui vient, en partie, de ce qu’il doit prédire.
+
+Cette section emploie un renseignement qui a le droit d’exister : **le taux d’absence passé du
+patient**. Le cours s’en sert déjà, et il est dans la table sous le nom `taux_absence_passe`. Une
+colonne qui parle du même patient est exactement ce qu’un découpage par groupes protège.
+
+Ce qu’on regarde : la même colonne, calculée de trois façons. Sur **toute** la table, étiquette
+comprise : c’est la fuite. Sur l’apprentissage seul, en laissant chaque ligne contribuer à sa
+propre valeur. Puis **hors pli**, c’est-à-dire sans qu’aucune ligne serve à calculer sa propre
+valeur. Trois chiffres, et un seul se défend.
+
+Ce que cette section **ne tranche pas** : le lissage d’un tel encodage, et la sélection de modèle
+à l’intérieur d’un pli. Les deux sont nommés, aucun des deux n’est développé.
+</pre>
+<pre><code># 1. la fuite : la colonne est calculée sur toute la table, étiquette comprise
+def historique(appris, lignes):
+    &quot;&quot;&quot;Le taux d’absence passé du patient : appris sur `appris`, appliqué à `lignes`.
+       Un patient inconnu de `appris` reçoit le taux moyen de `appris`.&quot;&quot;&quot;
+    taux = appris.groupby(&#x27;patient_id&#x27;)[CIBLE].mean()
+    return lignes[&#x27;patient_id&#x27;].map(taux).fillna(appris[CIBLE].mean()).to_numpy()
+
+prevoir(&#x27;l’historique du patient&#x27;, &#x27;calculé sur toute la table, il fait exploser le score&#x27;,
+        &#x27;chaque ligne de contrôle a contribué à sa propre valeur&#x27;)
+X_fuite = X.copy()
+X_fuite[&#x27;historique_patient&#x27;] = historique(train, train)
+m_fuite = HistGradientBoostingClassifier(random_state=0).fit(X_fuite.iloc[st_app], y.iloc[st_app])
+score_fuite = 100 * m_fuite.score(X_fuite.iloc[st_cont], y.iloc[st_cont])
+noter(&#x27;l’historique du patient&#x27;, &#x27;calculé sur toute la table&#x27;,
+      &#x27;chaque ligne de contrôle a contribué à sa propre valeur&#x27;, score_fuite)
+print(f&#x27;  la fuite, sur toute la table : {score_fuite:.2f} %&#x27;)
+</code></pre>
+<pre class='out'>                      essai  ...   écrit à
+0  un découpage par patient  ...  10:33:52
+1   l’historique du patient  ...  10:39:11
+
+[2 rows x 4 columns]
+                  hypothèse  ... prédiction écrite avant ?
+0  un découpage par patient  ...           oui, à 10:33:52
+1   l’historique du patient  ...           oui, à 10:39:11
+
+[2 rows x 5 columns]
+  la fuite, sur toute la table : 95.90 %
+</pre>
+<pre><code># 2. le geste naturel : apprendre la colonne sur l&#x27;apprentissage, et l&#x27;y laisser telle quelle
+app, cont = train.iloc[st_app], train.iloc[st_cont]
+Xa = X.iloc[st_app].copy()
+Xa[&#x27;historique_patient&#x27;] = historique(app, app)
+m_naif = HistGradientBoostingClassifier(random_state=0).fit(Xa, y.iloc[st_app])
+score_naif = 100 * m_naif.score(Xa, y.iloc[st_app])
+score_naif_controle = 100 * m_naif.score(X_fuite.iloc[st_cont].assign(
+    historique_patient=historique(app, cont)), y.iloc[st_cont])
+print(f&#x27;  l’apprentissage se voit lui-même : {score_naif:.2f} % sur lui-même, {score_naif_controle:.2f} % au contrôle&#x27;)
+print(&#x27;→ la colonne est parfaite là où elle a été apprise, et trompeuse ailleurs : le modèle&#x27;)
+print(&#x27;  s’y appuie, puis se casse sur des patients qu’il n’a jamais vus. Ce chiffre est&#x27;)
+print(f&#x27;  pire que celui du cours sans la colonne ({scores[&quot;stratifié (le découpage du cours)&quot;]:.2f} %).&#x27;)
+</code></pre>
+<pre class='out'>  l’apprentissage se voit lui-même : 97.11 % sur lui-même, 79.21 % au contrôle
+→ la colonne est parfaite là où elle a été apprise, et trompeuse ailleurs : le modèle
+  s’y appuie, puis se casse sur des patients qu’il n’a jamais vus. Ce chiffre est
+  pire que celui du cours sans la colonne (82.51 %).
+</pre>
+<pre><code># 3. la réparation : hors pli sur l&#x27;apprentissage, et les plis ne voient jamais leur propre ligne
+from sklearn.model_selection import StratifiedKFold
+
+taux = app.groupby(&#x27;patient_id&#x27;)[CIBLE].mean()
+Xa[&#x27;historique_patient&#x27;] = np.nan
+for a, b in StratifiedKFold(n_splits=5, shuffle=True, random_state=0).split(Xa, y.iloc[st_app]):
+    par_pli = app.iloc[a].groupby(&#x27;patient_id&#x27;)[CIBLE].mean()
+    Xa.iloc[b, Xa.columns.get_loc(&#x27;historique_patient&#x27;)] = (
+        app.iloc[b][&#x27;patient_id&#x27;].map(par_pli).fillna(app[CIBLE].mean()).to_numpy())
+Xa[&#x27;historique_patient&#x27;] = Xa[&#x27;historique_patient&#x27;].fillna(app[CIBLE].mean())
+
+Xl = X.iloc[st_cont].copy()
+Xl[&#x27;historique_patient&#x27;] = cont[&#x27;patient_id&#x27;].map(taux).fillna(app[CIBLE].mean()).to_numpy()
+m_propre = HistGradientBoostingClassifier(random_state=0).fit(Xa, y.iloc[st_app])
+propre = 100 * m_propre.score(Xl, y.iloc[st_cont])
+
+inconnus = cont[&#x27;patient_id&#x27;].isin(app[&#x27;patient_id&#x27;]).eq(False).mean()
+print(f&#x27;  hors pli sur l’apprentissage : {propre:.2f} %&#x27;)
+print(f&#x27;→ les trois états du même renseignement : {score_fuite:.2f} % · {score_naif_controle:.2f} % · {propre:.2f} %.&#x27;)
+print(f&#x27;  Le gain honnête vaut {propre - scores[&quot;stratifié (le découpage du cours)&quot;]:+.2f} point — à peine&#x27;)
+print(f&#x27;  plus que la barre ({barre:.2f}). Il n’est pas démontré, et il se dit tel quel.&#x27;)
+print(f&#x27;  Et {100 * inconnus:.1f} % des lignes de contrôle portent un patient inconnu : en production,&#x27;)
+print(&#x27;  ce sont elles qui décident, et elles n’ont pas d’historique.&#x27;)
+</code></pre>
+<pre class='out'>  hors pli sur l’apprentissage : 82.77 %
+→ les trois états du même renseignement : 95.90 % · 79.21 % · 82.77 %.
+  Le gain honnête vaut +0.26 point — à peine
+  plus que la barre (0.22). Il n’est pas démontré, et il se dit tel quel.
+  Et 52.1 % des lignes de contrôle portent un patient inconnu : en production,
+  ce sont elles qui décident, et elles n’ont pas d’historique.
+</pre>
+<pre>**Et l’avance du modèle tient à cette seule colonne.** Mesuré : sans `taux_absence_passe`, le même
+modèle retombe à **81,76 %**, c’est-à-dire la réponse constante (**81,75 %**). Tout ce que le modèle
+sait de plus que « tout le monde vient », il le tient d’une colonne qui parle du patient.
+
+&gt; **Question →** `Devoir_maison_3.ipynb`, **question 2 (carnet J5)** — introduire la fuite, mesurer
+&gt; ce qu’elle rapporte, puis la corriger dans une chaîne.
+</pre>
+<pre>### La fuite, lue au niveau de la perte
+
+L’exactitude raconte une partie de l’histoire. La **perte** — la log-loss, celle que l’entraînement
+minimise — la raconte en entier, et les trois états de la même colonne y ont **trois signatures**
+différentes.
+
+**La perte, écrite deux fois.** En symboles : $-\log(p)$ pour la vraie classe, moyenne sur les
+lignes. En mots : la punition d’une annonce. Elle est d’autant plus forte que l’annonce était
+confiante et fausse. Annoncer 0,01 à un patient absent coûte **4,6** ; annoncer 0,99 coûte **0,01**.
+
+Ce qu’on regarde : la perte d’apprentissage et celle de contrôle, pour les trois versions.
+</pre>
+<pre><code># les trois états de la colonne, lus au niveau de la perte
+from sklearn.metrics import log_loss
+
+X_naif = X.iloc[st_app].copy()
+X_naif[&#x27;historique_patient&#x27;] = historique(app, app)
+
+def pertes(modele, X_app, X_cont, nom):
+    &quot;&quot;&quot;La perte d’apprentissage et la perte de contrôle du même modèle.&quot;&quot;&quot;
+    app_perte = log_loss(y.iloc[st_app], modele.predict_proba(X_app)[:, 1])
+    cont_perte = log_loss(y.iloc[st_cont], modele.predict_proba(X_cont)[:, 1])
+    print(f&#x27;  {nom:&lt;28} apprentissage {app_perte:6.4f} | contrôle {cont_perte:6.4f}&#x27;)
+
+pertes(m_fuite, X_fuite.iloc[st_app], X_fuite.iloc[st_cont], &#x27;la fuite (toute la table)&#x27;)
+pertes(m_naif, X_naif, Xl, &#x27;le geste naïf&#x27;)
+pertes(m_propre, Xa, Xl, &#x27;hors pli (honnête)&#x27;)
+print(&#x27;→ trois signatures : la fuite écrase les deux pertes, le geste naïf fait exploser l’écart,&#x27;)
+print(&#x27;  et la version hors pli laisse un écart petit. Une perte qui se creuse est le signe le&#x27;)
+print(&#x27;  plus sûr ; une exactitude qui se creuse, seulement le plus visible.&#x27;)
+</code></pre>
+<pre class='out'>  la fuite (toute la table)    apprentissage 0.0710 | contrôle 0.0866
+  le geste naïf                apprentissage 0.0625 | contrôle 1.0451
+  hors pli (honnête)           apprentissage 0.3905 | contrôle 0.4088
+→ trois signatures : la fuite écrase les deux pertes, le geste naïf fait exploser l’écart,
+  et la version hors pli laisse un écart petit. Une perte qui se creuse est le signe le
+  plus sûr ; une exactitude qui se creuse, seulement le plus visible.
+</pre>
+<pre>## 3. Les variantes de découpage, et ce que chacune protège
+
+Un découpage est une hypothèse sur le monde. Il dit ce qui, dans vos données, se répète et ne doit
+donc pas servir deux fois. Trois familles suffisent à couvrir la table du cours. Et répéter un
+découpage donne plusieurs scores : on les rend alors en moyenne **et** en dispersion :
+
+| Variante | Ce qu’elle protège |
+|---|---|
+| k-fold | contre un découpage chanceux : cinq découpages, cinq scores |
+| stratifié | contre un pli sans positifs, quand la classe est rare |
+| par groupes | contre l’entité qui revient : le patient, la clinique, le magasin |
+| temporel | contre le futur qui enseigne le passé |
+| leave-one-out | rien de plus ici : autant d’évaluations que de lignes, et chaque score voit presque toute la table |
+
+Ce qu’on regarde : cinq plis stratifiés et cinq plis par groupes, sur le même modèle. La moyenne
+et l’écart-type disent si l’écart entre les deux découpages dépasse la dispersion des plis.
+
+**La dispersion, écrite deux fois.** En symboles : la moyenne des scores de pli, $\bar{s}$, et leur
+écart-type, $\sigma$. En mots : ce que le chiffre vaudrait si l’on avait tiré d’**autres** plis —
+donc ce qu’un seul tirage ne peut pas montrer.
+
+Ce que cette section **ne tranche pas** : la comparaison appariée de deux modèles sur un même
+découpage, et l’imbrication d’une sélection de modèle dans un pli. Les deux reviendront plus tard.
+</pre>
+<pre>### La démonstration, pli par pli
+
+Cinq plis de chaque façon, dessinés puis chiffrés : le même modèle, cinq fois, sous deux
+découpages. Ce qu’on lit dans le tableau, c’est la **dispersion** — pas la moyenne.
+</pre>
+<pre><code># cinq plis de chaque façon : la moyenne, et la dispersion autour d&#x27;elle
+import matplotlib.pyplot as plt
+from sklearn.model_selection import GroupKFold, StratifiedKFold
+
+plis_stratifie = list(StratifiedKFold(n_splits=5).split(X, y))
+plis_groupes = list(GroupKFold(n_splits=5).split(X, y, groups=train[&#x27;patient_id&#x27;]))
+
+fig, ax = plt.subplots(figsize=(9, 2.6))
+for k, (nom, plis) in enumerate([(&#x27;stratifié&#x27;, plis_stratifie), (&#x27;par patient&#x27;, plis_groupes)]):
+    for j, (_, cont) in enumerate(plis):
+        ax.scatter(cont, [k] * len(cont), s=1, color=f&#x27;C{j}&#x27;)
+ax.set_yticks([0, 1])
+ax.set_yticklabels([&#x27;stratifié&#x27;, &#x27;par patient&#x27;])
+ax.set_xlabel(&#x27;les 149 894 lignes, dans l’ordre de la table — une couleur par pli&#x27;)
+ax.set_title(&#x27;chaque couleur est un jeu de contrôle&#x27;)
+plt.show()
+</code></pre>
+<pre class='out'>&lt;cellule 16&gt;:16: UserWarning: FigureCanvasAgg is non-interactive, and thus cannot be shown
+</pre>
+<pre><code># et les deux mêmes découpages, chiffrés
+def scores_des_plis(plis):
+    &quot;&quot;&quot;Un score par pli, dans l’ordre des plis.&quot;&quot;&quot;
+    out = []
+    for app, cont in plis:
+        m = HistGradientBoostingClassifier(random_state=0).fit(X.iloc[app], y.iloc[app])
+        out.append(100 * m.score(X.iloc[cont], y.iloc[cont]))
+    return out
+
+stratifies = scores_des_plis(plis_stratifie)
+groupes = scores_des_plis(plis_groupes)
+tableau_plis = pd.DataFrame({
+    &#x27;découpage&#x27;: [&#x27;stratifié&#x27;, &#x27;par patient&#x27;],
+    &#x27;moyenne (%)&#x27;: [round(np.mean(stratifies), 2), round(np.mean(groupes), 2)],
+    &#x27;écart-type&#x27;: [round(np.std(stratifies), 3), round(np.std(groupes), 3)],
+    &#x27;étendue&#x27;: [round(max(stratifies) - min(stratifies), 2), round(max(groupes) - min(groupes), 2)],
+})
+display(pd.DataFrame({&#x27;pli&#x27;: [f&#x27;pli {i + 1}&#x27; for i in range(5)],
+                      &#x27;stratifié (%)&#x27;: [round(v, 2) for v in stratifies],
+                      &#x27;par patient (%)&#x27;: [round(v, 2) for v in groupes]}))
+display(tableau_plis.set_index(&#x27;découpage&#x27;))
+print(f&#x27;→ la moyenne ne bouge pas ({np.mean(stratifies) - np.mean(groupes):+.2f} point),&#x27;)
+print(f&#x27;  mais l’écart-type augmente : {np.std(stratifies):.3f} contre {np.std(groupes):.3f}.&#x27;)
+print(&#x27;  Le découpage honnête rend un chiffre moins stable — et c’est cette instabilité&#x27;)
+print(&#x27;  qui dit la vérité : vos plis ne se ressemblent plus.&#x27;)
+</code></pre>
+<pre class='out'>     pli  stratifié (%)  par patient (%)
+0  pli 1          82.40            82.41
+1  pli 2          82.61            82.82
+2  pli 3          82.40            82.49
+3  pli 4          82.48            82.11
+4  pli 5          82.36            82.44
+             moyenne (%)  écart-type  étendue
+découpage                                    
+stratifié          82.45       0.090     0.25
+par patient        82.45       0.227     0.71
+→ la moyenne ne bouge pas (-0.00 point),
+  mais l’écart-type augmente : 0.090 contre 0.227.
+  Le découpage honnête rend un chiffre moins stable — et c’est cette instabilité
+  qui dit la vérité : vos plis ne se ressemblent plus.
+</pre>
+<pre>&gt; **Question →** `Devoir_maison_3.ipynb`, **question 3 (carnet J5)** — une validation croisée
+&gt; stratifiée sur trois modèles, rendue en moyenne **±** écart-type.
+</pre>
+<pre>## 4. La validation temporelle
+
+Quand une colonne dit *quand*, le hasard devient faux. Un découpage au hasard laisse le modèle
+apprendre sur des lignes de décembre et juger sur des lignes de janvier. Il aura vu la suite avant
+de rendre sa copie.
+
+Les deux périodes de ce cours ne se chevauchent pas. L’historique s’arrête au **2025-11-18**. La
+table de test, elle, porte des rendez-vous de **2026** : mesuré, **63 205 lignes sur 63 721**, soit
+**99,2 %**. Les 516 lignes restantes portent des dates de 2023 à 2025. La séparation est nette,
+pas parfaite.
+
+Deux gestes suffisent, et voici leurs noms. `TimeSeriesSplit` découpe l’historique en plis où
+l’apprentissage précède toujours le contrôle. Le **backtest à origine glissante** fait la même
+chose avec un horizon fixe : on avance l’origine, et on rejoue la mesure.
+
+Ce qu’on regarde : le même modèle, jugé sur les 20 % de lignes les plus récentes, contre son score
+au hasard. Le contrôle par patient reste d’actualité : les patients reviennent **au fil du temps**,
+mesuré à **45,1 %** des lignes de contrôle même dans cette coupe.
+
+Ce que cette section **ne tranche pas** : la prévision elle-même. Produire un chiffre pour une date
+qui n’existe pas encore, et le juger contre un naïf, c’est la séance 6.
+</pre>
+<pre><code># la ligne du temps, les plis qui avancent — et la table qu&#x27;il faut TRIER d&#x27;abord
+from sklearn.model_selection import TimeSeriesSplit
+
+# `TimeSeriesSplit` suit l&#x27;ORDRE DES LIGNES, pas les dates. Cette table est mélangée :
+# sans tri préalable, les plis ne sont pas des périodes.
+ordre_dates = np.argsort(pd.to_datetime(train[&#x27;date_rdv&#x27;]).to_numpy(), kind=&#x27;stable&#x27;)
+X_trie, y_trie = X.iloc[ordre_dates], y.iloc[ordre_dates]
+dates = pd.to_datetime(train[&#x27;date_rdv&#x27;]).iloc[ordre_dates]
+print(&#x27;la table triée par date est monotone :&#x27;, bool(dates.is_monotonic_increasing))
+
+plis_temps_bruts = list(TimeSeriesSplit(n_splits=5).split(X_trie))
+fig, ax = plt.subplots(figsize=(9, 2.8))
+for i, (app, cont) in enumerate(plis_temps_bruts):
+    ax.plot([dates.iloc[app].min(), dates.iloc[app].max()], [i] * 2, lw=6, color=&#x27;#b9b9b9&#x27;)
+    ax.plot([dates.iloc[cont].min(), dates.iloc[cont].max()], [i] * 2, lw=6, color=&#x27;#c0392b&#x27;)
+ax.axvline(dates.max(), color=&#x27;black&#x27;, ls=&#x27;:&#x27;, lw=1)
+ax.text(dates.max(), -0.9, &#x27; fin de l’historique&#x27;, fontsize=8)
+ax.set_yticks([])
+ax.set_xlabel(&#x27;les plis de TimeSeriesSplit, sur la table triée par date : gris l’apprentissage, rouge le contrôle&#x27;)
+ax.set_title(&#x27;le contrôle vient toujours après l’apprentissage — à condition d’avoir trié&#x27;)
+plt.show()
+print(&#x27;l’historique va du&#x27;, dates.min().date(), &#x27;au&#x27;, dates.max().date())
+print(&#x27;chaque contrôle est une période qui suit son apprentissage :&#x27;,
+      [str(dates.iloc[cont].min().date()) for _, cont in plis_temps_bruts])
+</code></pre>
+<pre class='out'>la table triée par date est monotone : True
+&lt;cellule 18&gt;:21: UserWarning: FigureCanvasAgg is non-interactive, and thus cannot be shown
+l’historique va du 2023-01-02 au 2025-11-18
+chaque contrôle est une période qui suit son apprentissage : [&#x27;2023-07-27&#x27;, &#x27;2024-02-20&#x27;, &#x27;2024-07-26&#x27;, &#x27;2025-01-28&#x27;, &#x27;2025-06-21&#x27;]
+</pre>
+<pre>### La démonstration, origine par origine
+
+Cinq origines, et pour chacune le même modèle : ce que la coupe dans le temps coûte, et ce que le
+découpage par patient y superpose encore.
+</pre>
+<pre><code># le même modèle, une coupe dans le temps — et le score honnête
+coupe = int(0.8 * len(ordre_dates))
+app_t, cont_t = ordre_dates[:coupe], ordre_dates[coupe:]
+m_temps = HistGradientBoostingClassifier(random_state=0).fit(X.iloc[app_t], y.iloc[app_t])
+score_temps = 100 * m_temps.score(X.iloc[cont_t], y.iloc[cont_t])
+
+# cinq plis, sur la table TRIÉE : c&#x27;est la seule façon qu&#x27;ils soient des périodes
+plis_temps = [100 * HistGradientBoostingClassifier(random_state=0)
+              .fit(X_trie.iloc[a], y_trie.iloc[a]).score(X_trie.iloc[b], y_trie.iloc[b])
+              for a, b in TimeSeriesSplit(n_splits=5).split(X_trie)]
+print(f&#x27;  au hasard (le découpage du cours) : {scores[&quot;stratifié (le découpage du cours)&quot;]:.2f} %&#x27;)
+print(f&#x27;  80 / 20 dans le temps             : {score_temps:.2f} %&#x27;)
+print(f&#x27;  TimeSeriesSplit, cinq plis        : {np.mean(plis_temps):.2f} % (étendue {max(plis_temps) - min(plis_temps):.2f})&#x27;)
+print(f&#x27;  le détail des cinq plis           : {[round(v, 2) for v in plis_temps]}&#x27;)
+ecart_temps = score_temps - scores[&#x27;stratifié (le découpage du cours)&#x27;]
+print(f&#x27;→ la coupe dans le temps coûte {ecart_temps:+.2f} point, soit {abs(ecart_temps) / barre:.1f} barres de bruit.&#x27;)
+print(&#x27;  Le modèle n’a pas changé. Ce qui a changé, c’est ce qu’on lui demande :&#x27;)
+print(&#x27;  prédire la suite, au lieu de retrouver ce qu’il a déjà vu.&#x27;)
+print(&#x27;  Et l’étendue des cinq plis (0,88) vaut quatre fois celle du stratifié (0,25) : le&#x27;)
+print(&#x27;  temps ne rend pas seulement le chiffre plus bas, il le rend instable — et c’est&#x27;)
+print(&#x27;  une information sur le monde, pas un défaut de la mesure.&#x27;)
+</code></pre>
+<pre class='out'>  au hasard (le découpage du cours) : 82.51 %
+  80 / 20 dans le temps             : 81.95 %
+  TimeSeriesSplit, cinq plis        : 82.22 % (étendue 0.88)
+  le détail des cinq plis           : [82.29, 82.28, 82.16, 82.63, 81.75]
+→ la coupe dans le temps coûte -0.56 point, soit 2.5 barres de bruit.
+  Le modèle n’a pas changé. Ce qui a changé, c’est ce qu’on lui demande :
+  prédire la suite, au lieu de retrouver ce qu’il a déjà vu.
+  Et l’étendue des cinq plis (0,88) vaut quatre fois celle du stratifié (0,25) : le
+  temps ne rend pas seulement le chiffre plus bas, il le rend instable — et c’est
+  une information sur le monde, pas un défaut de la mesure.
+</pre>
+<pre>&gt; **Question →** `Devoir_maison_3.ipynb`, **question 4 (carnet J5)** — la validation temporelle sur
+&gt; les dates de votre sujet, et ce qu’elle coûte.
+</pre>
+<pre>### Le découpage qui protège des deux
+
+Les patients reviennent **et** le temps avance : sur cette table, aucun découpage simple ne protège
+des deux. Le découpage temporel laisse **45,1 %** des lignes de contrôle porter un patient déjà vu
+côté apprentissage ; le découpage par patient, lui, mélange les périodes.
+
+Ce qu’on regarde : la version qui protège des deux — on garde la coupe dans le temps, **et** on
+retire de l’apprentissage les patients qui apparaissent dans le contrôle. Puis le prix : ces
+patients ne servent plus à rien apprendre.
+
+Ce que cette section **ne tranche pas** : ce qu’il faut faire quand retirer ces patients vide une
+tranche entière de la table. Le cas se pose sur les petites bases ; il se traite en amont.
+</pre>
+<pre><code># la version qui protège des DEUX : les patients ne traversent pas, et le temps non plus
+patients_controle = set(train[&#x27;patient_id&#x27;].iloc[cont_t])
+garde = ~train[&#x27;patient_id&#x27;].iloc[app_t].isin(patients_controle).to_numpy()
+app_gt = app_t[garde]
+modele_gt = HistGradientBoostingClassifier(random_state=0).fit(X.iloc[app_gt], y.iloc[app_gt])
+score_gt = 100 * modele_gt.score(X.iloc[cont_t], y.iloc[cont_t])
+
+print(f&#x27;  chronologique simple : {score_temps:.2f} %  ({len(app_t)} lignes d’apprentissage)&#x27;)
+print(f&#x27;  groupe ET temporel   : {score_gt:.2f} %  ({len(app_gt)} lignes, {len(app_t) - len(app_gt)} patients retirés)&#x27;)
+partages = set(train[&#x27;patient_id&#x27;].iloc[app_gt]).intersection(patients_controle)
+print(f&#x27;  patients du contrôle déjà vus : {100 * len(partages) / len(patients_controle):.1f} %&#x27;)
+print(f&#x27;  pour mémoire : stratifié {scores[&quot;stratifié (le découpage du cours)&quot;]:.2f} % · par patient {scores[&quot;par patient&quot;]:.2f} %&#x27;)
+print(&#x27;→ protéger des deux se paie : le score descend, et c’est ce chiffre-là qui décrit le monde&#x27;)
+print(&#x27;  réel. Un patient qui revient n’est pas un patient neuf, et une date qui suit n’est pas&#x27;)
+print(&#x27;  une date au hasard.&#x27;)
+</code></pre>
+<pre class='out'>  chronologique simple : 81.95 %  (119915 lignes d’apprentissage)
+  groupe ET temporel   : 81.78 %  (96744 lignes, 23171 patients retirés)
+  patients du contrôle déjà vus : 0.0 %
+  pour mémoire : stratifié 82.51 % · par patient 82.41 %
+→ protéger des deux se paie : le score descend, et c’est ce chiffre-là qui décrit le monde
+  réel. Un patient qui revient n’est pas un patient neuf, et une date qui suit n’est pas
+  une date au hasard.
+</pre>
+<pre>### Et une chose qu’on ne traite pas encore : la prévision
+
+Tout ce carnet juge un modèle sur des lignes **déjà étiquetées**. C’est la bonne façon de valider —
+et ce n’est pas encore prévoir.
+
+Prévoir, c’est annoncer un **nombre** pour une date qui n’existe pas encore, et le juger contre un
+**naïf** sur un **horizon** nommé. Le geste est différent : l’horizon se met de côté avant de
+choisir un modèle, et l’erreur se lit **pas par pas**, pas en moyenne.
+
+→ La séance 6 le fait, sur une autre table du même réseau : la table d’activité.
+</pre>
+<pre>## 5. Ce qu’on retient, et la note technique
+
+Le projet rend une **note technique de trois pages**, au format imposé. Il tient en quatre
+sections, et chacune répond à une question que le lecteur se pose dans cet ordre.
+
+| Section | Ce qu’elle dit | La question du lecteur |
+|---|---|---|
+| **1. Le problème, et ce que coûte une erreur** | la décision, la métrique choisie, le seuil, et les deux prix | *de quoi parle-t-on, et pourquoi cette mesure ?* |
+| **2. Les données** | ce qui entre, ce qui est écarté et pourquoi, ce qui n’existera pas en production | *sur quoi le modèle a-t-il appris ?* |
+| **3. Les résultats et les erreurs** | la baseline, le protocole de validation, les chiffres **et leur marge**, les essais échoués, les trente erreurs les plus coûteuses | *le gain est-il réel, et où le modèle se trompe-t-il ?* |
+| **4. Les limites** | ce que le modèle ne sait pas faire, ce qui le casserait, ce qu’on vérifierait ensuite | *quand ne faut-il pas s’en servir ?* |
+
+La quatrième section est celle qui se bâcle le plus souvent, et celle qu’on vous reprochera. Une
+note qui ne dit pas ses limites n’est pas une note courte : c’est une note incomplète.
+
+&gt; **Question →** `Devoir_maison_3.ipynb`, **question 5 (carnet J5)** — le plan appliqué à votre
+&gt; sujet : ce que chaque section contiendra, et la preuve qui l’y autorise.
+</pre>
+<pre>### La liste de contrôle, à emporter
+
+- **Le découpage se décide avant la mesure.** Il dit ce qui se répète : le patient, la clinique, le
+  temps. Le score n’a de sens que sous un découpage nommé.
+- **Trois fuites, trois symptômes.** La colonne qui disparaît en production : elle gonfle le score
+  franchement. La colonne connue après l’issue : elle le fait exploser. La statistique apprise
+  avant le découpage : elle gonfle le score de 13 points quand elle contient l’étiquette de la
+  ligne. Apprise naïvement, elle fait **pire que rien**.
+- **Un écart se lit contre le bruit.** Sur cinq plis, on rend une moyenne **et** une dispersion. Un
+  écart plus petit que la dispersion des plis n’est pas un progrès, c’est un tirage.
+- **Le découpage par groupes ne fait pas gagner de points.** Il rend un chiffre qui veut dire
+  quelque chose. Ici, la moyenne ne bouge pas (**0,00 point**) et la dispersion double (**0,090**
+  contre **0,227**). Ce qui change, c’est la confiance qu’on peut mettre dans le chiffre.
+- **Le temps ne se mélange pas.** L’historique s’arrête le **2025-11-18**, le test commence en
+  **2026** ; juger dans le temps coûte **0,56 point** — et c’est le chiffre à annoncer.
+- **L’avance du modèle tient à une colonne.** Sans `taux_absence_passe`, il retombe à la réponse
+  constante : dites-le, plutôt que de laisser croire à un modèle qui comprend la médecine.
+</pre>
+</body></html>
