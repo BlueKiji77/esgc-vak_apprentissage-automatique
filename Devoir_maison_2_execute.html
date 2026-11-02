@@ -389,7 +389,9 @@ print(f&quot;votre échantillon personnel : {len(positions)} lignes (la moitié 
 if &quot;remplacez&quot; in MON_IDENTIFIANT:
     print(&quot;  ⚠ remplacez MON_IDENTIFIANT par votre pseudo : sinon votre échantillon est celui de tout le monde.&quot;)
 </code></pre>
-
+<pre class='out'>votre échantillon personnel : 14990 lignes (la moitié du jeu de contrôle), graine 1463641752
+  ⚠ remplacez MON_IDENTIFIANT par votre pseudo : sinon votre échantillon est celui de tout le monde.
+</pre>
 <pre>### Les vérifications, et le tableau d’essais
 </pre>
 <pre><code>def phrases(reponse):
@@ -436,10 +438,17 @@ verifier(&#x27;votre échantillon personnel est prêt&#x27;, len(yval_perso) &gt
 verifier(&#x27;le pipeline tourne sur une table brute&#x27;, len(pipeline(test.head(50))) == 50)
 verifier(&#x27;le fichier est écrit&#x27;, os.path.exists(&#x27;submission.csv&#x27;))
 </code></pre>
-
+<pre class='out'>  ok        les données sont chargées
+  ok        la table de travail est construite
+  ok        le découpage est fait, le modèle ajusté
+  ok        les baselines sont mesurées
+  ok        votre échantillon personnel est prêt
+  ok        le pipeline tourne sur une table brute
+  ok        le fichier est écrit
+</pre>
 <pre>## Les questions
 
-**Treize questions : dix de cœur, trois d’approfondissement.** Elles suivent l’ordre des
+**Douze questions : dix de cœur, deux d’approfondissement.** Elles suivent l’ordre des
 carnets — J3 d’abord (comparer, puis nettoyer), J4 ensuite (la mesure). Pour chacune : lisez
 la consigne, écrivez votre code (ou votre phrase) à l’emplacement prévu, et **exécutez la
 cellule** — c’est l’exécution qui déclenche les contrôles.
@@ -478,7 +487,10 @@ controle(&#x27;une exactitude en pourcentage&#x27;, lambda: 0 &lt; ma_baseline &
 controle(&#x27;un écart exprimé en erreurs-types&#x27;, lambda: 0 &lt;= abs(mes_erreurs_types) &lt; 30,
          &#x27;divisez votre écart par la barre&#x27;)
 </code></pre>
-
+<pre class='out'>  (pas encore écrit)  la règle est écrite
+  (pas encore écrit)  une exactitude en pourcentage
+  (pas encore écrit)  un écart exprimé en erreurs-types
+</pre>
 <pre>### Question 2 — Le classement affiché tient-il ?  ·  *carnet J3*  ·  *cœur*
 </pre>
 <pre>**Contexte.** En J3, douze variantes jugées sur 1 000 lignes affichées ne se retrouvaient pas sur
@@ -520,7 +532,10 @@ controle(&#x27;deux scores en pourcentage&#x27;,
 controle(&#x27;un rang entre 1 et 6&#x27;, lambda: 1 &lt;= rang_jamais_montre_premier &lt;= 6,
          &#x27;votre premier de l’affichage est l’un de vos six : donnez son rang parmi les lignes jamais montrées&#x27;)
 </code></pre>
-
+<pre class='out'>  (pas encore écrit)  une annonce est écrite avant la mesure
+  (pas encore écrit)  deux scores en pourcentage
+  (pas encore écrit)  un rang entre 1 et 6
+</pre>
 <pre>### Question 3 — Deux modèles, un seul découpage  ·  *carnet J3*  ·  *cœur*
 </pre>
 <pre>**Contexte.** En J3, deux réglages comparés sur le même découpage différaient de **0,04 point**.
@@ -552,7 +567,9 @@ controle(&#x27;deux scores en pourcentage&#x27;,
 controle(&#x27;un verdict écrit&#x27;, lambda: len(mon_verdict) &gt; 40,
          &#x27;dites si l’écart dépasse une barre, deux barres, ou aucune&#x27;)
 </code></pre>
-
+<pre class='out'>  (pas encore écrit)  deux scores en pourcentage
+  (pas encore écrit)  un verdict écrit
+</pre>
 <pre>### Question 4 — Votre tableau à quatre colonnes  ·  *carnet J3*  ·  *cœur*
 </pre>
 <pre>**Contexte.** Le tableau à quatre colonnes du carnet J3, rempli avec **vos** lignes.
@@ -590,7 +607,9 @@ controle(&#x27;les trois phrases sont écrites&#x27;,
                      len(ce_que_cela_couterait), len(ce_qui_me_l_aurait_dit)) &gt; 40,
          &#x27;trois phrases, chacune complète&#x27;)
 </code></pre>
-
+<pre class='out'>  (pas encore écrit)  un tableau d’au moins deux modèles
+  (pas encore écrit)  les trois phrases sont écrites
+</pre>
 <pre>### Question 5 — Le plafond : trois familles  ·  *carnet J3*  ·  *cœur*
 </pre>
 <pre>**Contexte.** Trois familles qui ne partagent pas leur mécanisme plafonnent au même endroit : le
@@ -623,7 +642,10 @@ controle(&#x27;trois scores&#x27;, lambda: len(trois_scores) == 3, &#x27;trois f
 controle(&#x27;la conclusion est argumentée&#x27;, lambda: len(str(ma_conclusion_plafond)) &gt; 40,
          &#x27;dites si le plafond est dans le modèle ou dans les données&#x27;)
 </code></pre>
-
+<pre class='out'>  (pas encore écrit)  une annonce est écrite avant la mesure
+  (pas encore écrit)  trois scores
+  (pas encore écrit)  la conclusion est argumentée
+</pre>
 <pre>### Question 6 — Le bruit d’étiquette  ·  *carnet J3*  ·  *cœur*
 </pre>
 <pre>**Contexte.** Le plafond peut aussi venir des **étiquettes** : personne n&#x27;annote parfaitement, et un
@@ -661,7 +683,10 @@ controle(&#x27;la cible est interrogée&#x27;,
          lambda: len(str(ma_conclusion_cible)) &gt; 40,
          &#x27;écrivez ce que cela implique pour la fiabilité des étiquettes&#x27;)
 </code></pre>
-
+<pre class='out'>  (pas encore écrit)  deux scores après brouillage
+  (pas encore écrit)  le modèle abîmé est nommé
+  (pas encore écrit)  la cible est interrogée
+</pre>
 <pre>### Question 7 — Un trou non informatif, un trou informatif  ·  *carnet J3*  ·  *cœur*
 </pre>
 <pre>**Contexte.** En J3, un trou peut ne rien dire (**non informatif**) ou porter de l’information
@@ -717,7 +742,15 @@ controle(&#x27;les deux colonnes sont différentes&#x27;,
 controle(&#x27;une décision est écrite&#x27;, lambda: len(ma_decision_colonne) &gt; 30,
          &#x27;que faites-vous de ces colonnes, et pourquoi&#x27;)
 </code></pre>
-
+<pre class='out'>  (pas encore écrit)  une colonne de la table brute est nommée (A)
+  (pas encore écrit)  une colonne de la table brute est nommée (B)
+  (pas encore écrit)  chaque groupe de A respecte le plancher du cours
+  (pas encore écrit)  chaque groupe de B respecte le plancher du cours
+  (pas encore écrit)  les deux taux de A sont des pourcentages
+  (pas encore écrit)  les deux taux de B sont des pourcentages
+  (pas encore écrit)  les deux colonnes sont différentes
+  (pas encore écrit)  une décision est écrite
+</pre>
 <pre>### Question 8 — Les décisions invisibles, et le journal  ·  *carnet J3*  ·  *approfondissement*
 </pre>
 <pre>**Contexte.** Une décision qui ne gagne pas de point doit gagner **autre chose** — et ce quelque
@@ -758,7 +791,11 @@ controle(&#x27;aucune phrase ne parle du score&#x27;,
 controle(&#x27;un autre choix est écrit&#x27;, lambda: len(str(mon_autre_choix)) &gt; 30,
          &#x27;dites, pour une décision, ce que vous auriez fait autrement&#x27;)
 </code></pre>
-
+<pre class='out'>  (pas encore écrit)  au moins trois décisions
+  (pas encore écrit)  une phrase par décision
+  (pas encore écrit)  aucune phrase ne parle du score
+  (pas encore écrit)  un autre choix est écrit
+</pre>
 <pre>### Question 9 — Le pipeline, et sa solidité  ·  *carnet J3*  ·  *approfondissement*
 </pre>
 <pre>**Contexte.** Le pipeline va de la table brute à la prédiction. Il est solide — jusqu&#x27;à ce qu&#x27;on le
@@ -795,7 +832,10 @@ controle(&#x27;deux sabotages décrits&#x27;,
 controle(&#x27;la leçon est écrite&#x27;, lambda: len(str(ce_quil_faut_verifier)) &gt; 30,
          &#x27;dites ce qu’il faut vérifier avant de livrer&#x27;)
 </code></pre>
-
+<pre class='out'>  (pas encore écrit)  le fichier a la forme du test
+  (pas encore écrit)  deux sabotages décrits
+  (pas encore écrit)  la leçon est écrite
+</pre>
 <pre>### Question 10 — Vos six métriques, et les deux aires  ·  *carnet J4*  ·  *cœur*
 </pre>
 <pre>**Contexte.** Le carnet a calculé sa matrice au **seuil par défaut**. Vous, vous changez le seuil —
@@ -853,7 +893,15 @@ controle(&#x27;les deux extrêmes sont chiffrés&#x27;,
          lambda: len(extreme_sans_alerte) &gt;= 2 and len(extreme_toujours_alerte) &gt;= 2,
          &#x27;deux nombres au moins par extrême : deux métriques&#x27;)
 </code></pre>
-
+<pre class='out'>  ok        votre échantillon personnel est construit
+  (pas encore écrit)  un seuil écrit entre 0 et 1
+  (pas encore écrit)  une matrice de quatre cases
+  (pas encore écrit)  six métriques
+  (pas encore écrit)  la métrique trompeuse est argumentée
+  (pas encore écrit)  les deux aires sont chiffrées
+  (pas encore écrit)  une log-loss écrite
+  (pas encore écrit)  les deux extrêmes sont chiffrés
+</pre>
 <pre>### Question 11 — Le coût, le seuil, et l’écart  ·  *carnet J4*  ·  *cœur*
 </pre>
 <pre>**Contexte.** La métrique affichée n&#x27;est pas la facture. Le coût d&#x27;une décision se lit sur **vos**
@@ -895,7 +943,10 @@ controle(&#x27;deux coûts, des entiers positifs&#x27;,
 controle(&#x27;l’écart est argumenté&#x27;, lambda: len(ecart_metrique_cout) &gt; 40,
          &#x27;chiffrez l’écart, et nommez les deux métriques comparées&#x27;)
 </code></pre>
-
+<pre class='out'>  (pas encore écrit)  un seuil écrit entre 0 et 1
+  (pas encore écrit)  deux coûts, des entiers positifs
+  (pas encore écrit)  l’écart est argumenté
+</pre>
 <pre>### Question 12 — Les deux classements  ·  *carnet J4*  ·  *cœur*
 </pre>
 <pre>**Contexte.** Le classement affiché se fait sur l&#x27;**exactitude** ; le cours vient de montrer que la décision
@@ -926,45 +977,9 @@ controle(&#x27;deux classements&#x27;, lambda: len(classement_exactitude) &gt;= 
 controle(&#x27;la réponse est argumentée&#x27;, lambda: len(str(tete_change)) &gt; 40,
          &#x27;dites si la tête change, et pourquoi&#x27;)
 </code></pre>
-
-<pre>### Question 13 — Quand ne pas faire de ML  ·  *carnet J4*  ·  *approfondissement*
+<pre class='out'>  (pas encore écrit)  deux classements
+  (pas encore écrit)  la réponse est argumentée
 </pre>
-<pre>**Contexte.** Toutes les décisions ne méritent pas un modèle. Une règle de trois lignes livrée en
-une semaine bat souvent un modèle qu&#x27;il faudra réentraîner, expliquer et défendre.
-
-**Consigne.**
-  1. choisissez **trois situations** — dont **une** tirée du cas de la clinique (le jeu du cours).
-     Pour chacune, dites ce que vous proposeriez **avant** tout modèle. Une règle simple écrite à
-     la main, une heuristique, ou rien ;
-  2. pour chacune, le **chiffre** qui trancherait (ce que la règle rapporte, ou coûte). Si la
-     situation sort du jeu de données, donnez un **ordre de grandeur** et les hypothèses qui le
-     portent. Combien de cas par mois, quel coût unitaire ;
-  3. dites laquelle des trois mérite un modèle, et pourquoi.
-
-**Livrables.** `mes_situations` · `leurs_chiffres` · `celle_qui_merite_un_modele`.
-
-**Critère de réussite.** Un chiffre sans hypothèse n&#x27;est pas un chiffre. Le cours a montré qu&#x27;une
-règle de trois lignes peut coûter **moins cher** qu&#x27;un modèle : ce n&#x27;est pas une défaite, c&#x27;est un
-résultat.
-
-*≈ 20 min.*
-</pre>
-<pre><code># À vous — écrivez votre réponse ici.
-
-# TODO : vos trois situations, et ce que vous proposeriez avant un modèle.
-# mes_situations = … (à vous : remplacez les trois points par votre valeur)
-# TODO : le chiffre qui tranche, pour chacune.
-# leurs_chiffres = … (à vous : remplacez les trois points par votre valeur)
-# TODO : laquelle mérite un modèle, et pourquoi.
-# celle_qui_merite_un_modele = … (à vous : remplacez les trois points par votre valeur)
-controle(&#x27;trois situations&#x27;, lambda: len(mes_situations) == 3,
-         &#x27;trois situations, dont une du sujet du cours&#x27;)
-controle(&#x27;un chiffre par situation&#x27;, lambda: len(leurs_chiffres) == 3,
-         &#x27;un chiffre qui tranche par situation&#x27;)
-controle(&#x27;le verdict est argumenté&#x27;, lambda: len(celle_qui_merite_un_modele) &gt; 40,
-         &#x27;nommez la situation, et dites pourquoi&#x27;)
-</code></pre>
-
 <pre>## Ce qu’on rend, et pourquoi ce format
 
 **Trois tableaux**, comme au devoir 1 :
@@ -994,7 +1009,33 @@ display(tableau_quatre_colonnes)
 print(&quot;vos contrôles \n&quot;)
 display(pd.DataFrame(VERIFICATIONS))
 </code></pre>
+<pre class='out'>vos essais 
 
+Empty DataFrame
+Columns: []
+Index: []
+votre journal de nettoyage 
+
+Empty DataFrame
+Columns: []
+Index: []
+votre tableau à quatre colonnes 
+
+Empty DataFrame
+Columns: []
+Index: []
+vos contrôles 
+
+                                    contrôle  tient
+0                  les données sont chargées   True
+1         la table de travail est construite   True
+2    le découpage est fait, le modèle ajusté   True
+3                les baselines sont mesurées   True
+4       votre échantillon personnel est prêt   True
+5     le pipeline tourne sur une table brute   True
+6                       le fichier est écrit   True
+7  votre échantillon personnel est construit   True
+</pre>
 <pre>## Rendre le travail
 
 1. **Exécutez tout** le carnet (`Run All`), pour que les tableaux soient remplis.

@@ -37,8 +37,7 @@ décision paie sur le terrain. On part de la métrique, on remonte à la perte, 
 le coût. Chaque section dit à quelle couche elle appartient.
 
 **Ce que le devoir 2 vous demandera :** vos six métriques recalculées depuis **votre** matrice.
-La courbe du coût et votre seuil. L’écart entre la métrique affichée et le coût réel. Et le
-tableau « quand ne pas faire de ML ».
+La courbe du coût et votre seuil. L’écart entre la métrique affichée et le coût réel.
 
 **La table de travail n’est pas reconstruite ici** : la mise en place est **extraite** de
 `notebook_J1.ipynb` et de `notebook_J3.ipynb`, qui restent les sources uniques.
@@ -598,6 +597,11 @@ chance qu’un patient absent tiré au hasard soit mieux classé qu’un patient
 diagonale : c’est le **taux de base**, la part d’absents. Une PR-AUC se lit donc **en multiple
 de son plancher** : la cellule imprime ce rapport, et c’est lui qui parle.
 
+**Une aire ne choisit pas de seuil.** La PR-AUC résume le classement sur tous les seuils ; elle ne
+dit pas où couper. Sans prix, il n’y a pas de seuil unique. On fixe une contrainte : alertes
+traitables, rappel minimal. Ou on lit un proxy, comme le F1, en disant son hypothèse. Ou on teste
+la sensibilité au rapport de coûts. Le seuil reste une décision, et elle s’écrit.
+
 **Pourquoi la ROC flatte une cible rare** : son taux de faux positifs divise les fausses alertes
 par le nombre de patients venus, qui se compte en dizaines de milliers. La précision, elle, les
 divise par le nombre d’alertes, qui varie fortement avec le seuil. Le même nombre d’erreurs
@@ -794,6 +798,14 @@ Toutes les erreurs ne se valent pas. Une **fausse alerte** coûte **25 u.** : un
 pour un patient qui venait. Une **absence manquée** coûte **100 u.** : un créneau vide, une
 équipe qui attend. Ces deux montants sont **fixés par l’énoncé** ; ils ne sont pas à choisir.
 
+**Le coût n’est pas une métrique.** Une métrique dit comment le modèle se trompe ; le coût dit
+combien cela paie. Il se calcule sur les quatre cases : `25 × FP + 100 × FN`. Au seuil 0,50, cela
+donne **497 925** ; au seuil appris, **372 700**.
+
+**Pourquoi pas la précision, ni le rappel ?** Chacune ignore une erreur. Un modèle qui n’alerte
+qu’une fois a une précision parfaite et un rappel nul ; alerter tout le monde donne l’inverse. Le
+F1 suppose les deux erreurs de même poids — ici, 100 contre 25.
+
 **Le seuil se déduit, il ne se devine pas.** Alerter quand la probabilité d’absence dépasse `p`
 coûte en espérance `25 × (1 − p)`, et ne pas alerter coûte `100 × p`
 absent. On alerte donc tant que `25 × (1 − p) &lt; 100 × p`, c’est-à-dire tant que `p &gt; 0,20`.
@@ -988,102 +1000,6 @@ print(f&#x27;  soit {round(regret * 1000 / len(yval)):,} unités pour 1 000 pati
 
 <pre>&gt; **Question →** `Devoir_maison_2.ipynb`, **question 12 (carnet J4)** — l’écart entre la métrique affichée et le coût réel, sur **vos** prédictions.
 </pre>
-<pre>### Quand ne pas faire de ML
-
-**Couche — la décision.** Avant le modèle, la question du coût.
-
-Toutes les décisions ne méritent pas un modèle. Une **règle simple écrite à la main** arrive en
-une semaine. Elle ne demande aucune maintenance et aucune donnée à surveiller. Elle bat souvent
-un modèle qu’il faudra réentraîner, expliquer et défendre.
-
-**Cinq questions avant d’entraîner quoi que ce soit :**
-
-1. une règle simple existe-t-elle déjà, et que coûte-t-elle ?
-2. le modèle apporte-t-il un gain de coût mesuré, ou seulement un meilleur score ?
-3. les données nécessaires existent-elles au moment de la décision ?
-4. qui maintiendra le modèle quand la population changera ?
-5. la décision doit-elle pouvoir s’expliquer à un patient, à un médecin, à un juge ?
-
-Le tableau qui suit répond aux deux premières. Chaque solution est mesurée par son coût. Le
-gain se lit par rapport à la référence.
-</pre>
-<pre><code># l’échelle des solutions, mesurée : le coût décide, pas la mode
-reference = cout(np.zeros(len(yval), dtype=int))   # ne rien faire
-echelle = pd.DataFrame([
-    {&#x27;solution&#x27;: &#x27;ne rien faire (la référence)&#x27;,
-     &#x27;exactitude (%)&#x27;: round(100 * (yval == 0).mean(), 2), &#x27;coût&#x27;: reference},
-    {&#x27;solution&#x27;: f&#x27;règle du délai : absent si le délai dépasse {seuil_appris} jours&#x27;,
-     &#x27;exactitude (%)&#x27;: round(100 * (regle == yval).mean(), 2), &#x27;coût&#x27;: cout(regle)},
-    {&#x27;solution&#x27;: &#x27;règle de l’historique : absent si ce patient a déjà manqué un rendez-vous&#x27;,
-     &#x27;exactitude (%)&#x27;: round(100 * ((Xval[&#x27;taux_absence_passe&#x27;] &gt; 0).astype(int) == yval).mean(), 2),
-     &#x27;coût&#x27;: cout((Xval[&#x27;taux_absence_passe&#x27;] &gt; 0).astype(int))},
-    {&#x27;solution&#x27;: &#x27;la famille linéaire&#x27;,
-     &#x27;exactitude (%)&#x27;: round(100 * lineaire.score(Xval_n, yval), 2),
-     &#x27;coût&#x27;: cout(lineaire.predict(Xval_n))},
-    {&#x27;solution&#x27;: &#x27;le modèle (arbres entraînés par corrections)&#x27;,
-     &#x27;exactitude (%)&#x27;: round(100 * exactitude, 2), &#x27;coût&#x27;: cout(predit)},
-])
-echelle[&#x27;gain vs référence (%)&#x27;] = (100 * (reference - echelle[&#x27;coût&#x27;]) / reference).round(1)
-display(echelle)
-print(&#x27;→ la meilleure exactitude de cette échelle n’est pas le coût le plus bas :&#x27;)
-print(&#x27;  le choix se fait sur la décision, et la décision se paie.&#x27;)
-print(&#x27;  Trois situations, dont une du sujet du cours : c’est ce que le devoir vous demande.&#x27;)
-</code></pre>
-
-<pre>**Une démonstration, sur un autre jeu.** Des capteurs de machine enregistrent la température,
-la vitesse, le couple et l’usure ; 3,4 % des lignes signalent une panne. Une règle de deux lignes
-— le produit du couple et de l’usure — est comparée à un modèle qui lit les cinq capteurs.
-Les deux sont jugés sur le même jeu de contrôle, avec les mêmes prix.
-
-Le résultat n’est pas celui qu’on attend : la règle est précise, mais elle laisse passer deux
-pannes sur trois. C’est la mesure qui tranche, et c’est pour cela qu’on la fait.
-</pre>
-<pre><code># une règle de deux lignes contre un modèle à cinq capteurs
-from sklearn.metrics import f1_score, recall_score
-from sklearn.model_selection import train_test_split
-
-# le fichier accompagne le jeu de données ; à défaut, il est à côté du dossier des données
-chemin_pannes = os.path.join(DOSSIER, &#x27;machine_failure.csv&#x27;)
-if not os.path.exists(chemin_pannes):
-    chemin_pannes = os.path.join(os.path.dirname(DOSSIER), &#x27;machine_failure.csv&#x27;)
-# si le fichier est ajouté comme entrée séparée (Add Input), il vit sous /kaggle/input
-if not os.path.exists(chemin_pannes) and os.path.isdir(&#x27;/kaggle/input&#x27;):
-    for _racine, _, _fichiers in os.walk(&#x27;/kaggle/input&#x27;):
-        if &#x27;machine_failure.csv&#x27; in _fichiers:
-            chemin_pannes = os.path.join(_racine, &#x27;machine_failure.csv&#x27;)
-            break
-pannes = pd.read_csv(chemin_pannes)
-capteurs = [&#x27;Air temperature [K]&#x27;, &#x27;Process temperature [K]&#x27;, &#x27;Rotational speed [rpm]&#x27;,
-            &#x27;Torque [Nm]&#x27;, &#x27;Tool wear [min]&#x27;]
-Xa_p, Xd_p, ya_p, yd_p = train_test_split(pannes[capteurs], pannes[&#x27;Machine failure&#x27;],
-                                          test_size=0.3, random_state=0,
-                                          stratify=pannes[&#x27;Machine failure&#x27;])
-
-# la règle, écrite à la main, et jugée sur le même contrôle
-regle_pannes = ((Xd_p[&#x27;Torque [Nm]&#x27;] * Xd_p[&#x27;Tool wear [min]&#x27;]) &gt; 11000).astype(int)
-# le modèle, sur les cinq capteurs
-modele_pannes = HistGradientBoostingClassifier(random_state=0).fit(Xa_p, ya_p)
-predit_pannes = modele_pannes.predict(Xd_p)
-
-from sklearn.metrics import precision_score
-
-def bilan(nom, decision):
-    manques = int(((decision == 0) &amp; (yd_p == 1)).sum())
-    fausses = int(((decision == 1) &amp; (yd_p == 0)).sum())
-    print(f&#x27;  {nom:&lt;26} F1 {100 * f1_score(yd_p, decision):5.1f} % · rappel {100 * recall_score(yd_p, decision):5.1f} %&#x27;
-          f&#x27; · précision {100 * precision_score(yd_p, decision):5.1f} %&#x27;
-          f&#x27; · coût {COUT_FP * fausses + COUT_FN * manques:5d}&#x27;)
-
-print(f&#x27;  lignes : {len(pannes)}, pannes : {int(pannes[&quot;Machine failure&quot;].sum())} ({100 * pannes[&quot;Machine failure&quot;].mean():.1f} %)&#x27;)
-bilan(&#x27;la règle écrite à la main&#x27;, regle_pannes)
-bilan(&#x27;le modèle, cinq capteurs&#x27;, predit_pannes)
-print(f&#x27;→ la règle est précise, mais elle laisse passer {100 - 100 * recall_score(yd_p, regle_pannes):.0f} %&#x27;)
-print(&#x27;  des pannes : elle coûte plus cher que le modèle.&#x27;)
-print(&#x27;  La mesurer avant de l’opposer était le point de la démonstration.&#x27;)
-</code></pre>
-
-<pre>&gt; **Question →** `Devoir_maison_2.ipynb`, **question 13 (carnet J4)** — trois situations, et ce que vous feriez **avant** d’entraîner un modèle.
-</pre>
 <pre>### Et quand la cible est un nombre ?
 
 **Couche — la métrique.** Les mêmes questions, pour une cible continue.
@@ -1275,10 +1191,5 @@ coûter très différemment, et le classement qui compte est celui de la facture
 
 **La perte** explique pourquoi le modèle se trompe comme il se trompe : elle est le seul chiffre
 que l’entraînement voit, et il n’apparaît jamais dans un rapport.
-
-**Et parfois, il ne faut pas de modèle** — mais c’est la mesure qui le dit. Une règle de deux
-lignes se compare au modèle sur le même jeu, avec les mêmes prix. Sur les capteurs de machine,
-elle perd. La question reste posée pour chaque décision : « quelle est la chose la plus simple
-qui atteint l’objectif ? ».
 </pre>
 </body></html>
